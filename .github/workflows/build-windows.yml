@@ -25,7 +25,9 @@ jobs:
           Add-Content $pth ".."
           Invoke-WebRequest https://bootstrap.pypa.io/get-pip.py -OutFile get-pip.py
           & "$b\python\python.exe" get-pip.py --no-warn-script-location
-          & "$b\python\python.exe" -m pip install --no-warn-script-location -r requirements.txt
+          & "$b\python\python.exe" -m pip install --no-warn-script-location setuptools wheel
+          & "$b\python\python.exe" -m pip install --no-warn-script-location --no-build-isolation -r requirements.txt
+          if ($LASTEXITCODE) { exit 1 }
           Copy-Item -Recurse onlyphone "$b\onlyphone"
           Invoke-WebRequest https://dl.google.com/android/repository/platform-tools-latest-windows.zip -OutFile pt.zip
           Expand-Archive pt.zip "$b\tools"
