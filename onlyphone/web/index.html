@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Only Tools</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg></div>
+      <div><b>ONLY <span>TOOLS</span></b><small>par Only Phone</small></div></div>
+    <div class="navs"><button id="tab-diag" class="active">Diagnostic</button><button id="tab-hist">Historique</button></div>
+    <div class="navs" style="padding-top:0"><button id="tab-flash">Flash iOS</button></div>
+    <div class="sec-title">Appareils branchés</div>
+    <div id="devlist" class="devlist"></div>
+    <div class="side-foot"><div id="toolsinfo"></div><div id="upd" style="margin-top:8px"></div></div>
+  </aside>
+
+  <main class="main">
+    <div class="wrap" id="view-diag">
+      <div id="nodevice" class="empty"><div>
+        <div class="plug" style="margin:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v5"/></svg></div>
+        <h1>Branchez un téléphone</h1>
+        <p>Détection automatique dès le branchement — iPhone, iPad, Samsung, Xiaomi, Pixel…<br>
+        <span style="color:var(--dim)">Un câble « charge seule » ou un appareil éteint ne peut pas être détecté.</span></p></div></div>
+
+      <div id="device" class="hidden">
+        <div class="card"><div class="hero">
+          <div id="phone-art" class="phone-art"></div>
+          <div><h1 id="d-title"></h1><div class="sub" id="d-sub"></div><div class="chips" id="d-chips"></div></div>
+          <div class="actions">
+            <button id="btn-exitrec" class="primary hidden">Sortir du mode Récupération</button>
+            <button id="btn-pair" class="hidden">Demander l'autorisation (« Se fier »)</button>
+            <button id="btn-diag" class="primary">Diagnostic complet</button>
+            <button id="btn-charge">Test de charge (20 s)</button>
+            <button id="btn-export" class="ghost">Exporter le rapport</button>
+          </div></div>
+          <div id="d-hints" style="margin-top:12px"></div><div id="d-flash"></div>
+          <div class="row" id="bl-row" style="margin-top:12px">
+            <b style="color:var(--gold)">Blacklist</b><span id="bl-status"></span>
+            <input id="bl-imei" placeholder="IMEI (15 chiffres)" maxlength="15" style="width:190px">
+            <button id="bl-check">Vérifier</button>
+            <button id="bl-clean" class="hidden">Clean</button><button id="bl-bad" class="hidden">Blacklisté</button></div>
+        </div>
+
+        <div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 11v2"/></svg>Batterie</h2><div id="battery"></div></div>
+
+        <div class="card hidden" id="panic-card"><h2>Panics (redémarrages) — surveillance automatique</h2><div id="panic-auto"></div></div>
+
+        <div class="card hidden" id="charge-card"><h2>Test de charge</h2>
+          <svg id="chart" class="chart" viewBox="0 0 600 170" preserveAspectRatio="none"></svg>
+          <div id="charge-sum" class="note"></div></div>
+
+        <div class="card"><h2>Informations appareil</h2><div class="grid" id="d-grid"></div></div>
+
+        <div class="card hidden" id="progress-panel"><h2>Diagnostic en cours</h2>
+          <div class="bar"><i id="bar" style="width:0"></i></div><p id="step" class="note"></p></div>
+
+        <div id="results" class="hidden">
+          <div class="card"><h2>Causes possibles &amp; recommandations</h2><div id="hyps"></div></div>
+          <div class="two">
+            <div class="card"><h2>Indices observés</h2><div id="evidence"></div></div>
+            <div class="card"><h2>Rapports de panic iPhone</h2><div id="panics"><p class="note">Non applicable.</p></div></div>
+          </div>
+          <div class="card" id="tests-card"><h2>Tests guidés</h2><div id="tests"></div>
+            <div class="row" style="margin-top:14px;justify-content:flex-end"><button id="btn-save-tests">Enregistrer les tests</button>
+            <button id="btn-pdf" class="primary">Rapport PDF</button></div></div>
+          <div class="card"><h2>Limites de ce diagnostic</h2><ul id="limits" class="note"></ul></div>
+        </div>
+        <div class="card"><div class="row"><input id="ticket" placeholder="Réf. ticket (facultatif)" maxlength="60" style="flex:1">
+          <label class="note" style="margin:0"><input type="checkbox" id="consent"> Conserver les journaux bruts (consentement client)</label></div></div>
+      </div>
+    </div>
+
+    <div class="wrap hidden" id="view-flash">
+      <div id="f-last"></div>
+      <div class="card"><h2>Appareil cible</h2><div id="f-target"></div>
+        <div class="row" style="margin-top:12px">
+          <button id="f-enter">Entrer en mode Récupération</button><button id="f-exit">Sortir du mode Récupération / DFU</button>
+          <button id="f-detect">Détecter un iPhone en Récupération / DFU</button></div>
+        <div class="hyp" style="margin-top:14px"><h3>Restauration Apple (même moteur que le Finder) — DFU, Récupération, « Debug USB »</h3>
+          <div id="cfg-box" class="note"></div></div>
+        <details style="margin-top:12px"><summary class="note" style="cursor:pointer">Guide : mettre l'iPhone en mode DFU (impossible par logiciel)</summary>
+          <ul class="note">
+            <li><b>iPhone 8 et ultérieurs (SE 2/3 inclus)</b> : branché, appuyer/relâcher Volume +, appuyer/relâcher Volume −, maintenir le bouton latéral ~10 s jusqu'à l'écran noir, puis maintenir aussi Volume − 5 s, relâcher le bouton latéral en gardant Volume − ~10 s. Écran noir = DFU ; logo câble = Récupération.</li>
+            <li><b>iPhone 7 / 7 Plus</b> : maintenir bouton latéral + Volume − 8 s, relâcher le latéral en gardant Volume − ~10 s.</li>
+            <li><b>iPhone 6s et antérieurs</b> : maintenir bouton principal + bouton latéral/haut 8 s, relâcher le latéral en gardant le bouton principal ~10 s.</li>
+            <li>Puis cliquer « Détecter un iPhone en Récupération / DFU ».</li></ul></details></div>
+      <div class="card"><h2>iPhone qui ne démarre pas — assistant panne</h2>
+        <div class="row"><input id="dp-code" placeholder="Code d'erreur Finder/iTunes (ex. 4013)" style="width:260px">
+          <select id="dp-amp" style="background:var(--bg2);color:var(--text);border:1px solid var(--line2);border-radius:10px;padding:9px"><option value="">Ampèremètre : non mesuré</option></select>
+          <button id="dp-go">Analyser</button></div>
+        <div id="dp-res"></div></div>
+      <div class="card"><h2>Firmwares disponibles (serveurs Apple)</h2>
+        <p class="note">Seuls les firmwares <b>signés</b> par Apple peuvent être installés. Taille : 6 à 12 Go chacun.</p><div id="f-list" class="note">Sélectionnez un iPhone.</div></div>
+      <div class="card"><h2>Bibliothèque locale</h2><div id="f-lib"></div><p class="note" id="f-dir"></p></div>
+      <div class="card"><h2>Lancer le flash</h2>
+        <div class="row"><label><input type="radio" name="f-mode" value="restore-update" checked> <b>Conserver les données</b> (mise à jour / réparation iOS)</label>
+          <label><input type="radio" name="f-mode" value="restore-erase"> <b>Effacer tout</b> (restauration usine)</label></div>
+        <div class="alert warn" style="margin-top:10px"><div>Avant de flasher : sauvegarde du client, batterie ≥ 30 %, câble d'origine, ne pas débrancher.
+          L'effacement est <b>irréversible</b>. Après une restauration, le verrouillage d'activation iCloud reste actif : le client doit connaître son identifiant Apple.</div></div>
+        <div class="row" style="margin-top:10px"><input id="f-confirm" placeholder="Tapez FLASH pour confirmer" style="flex:1"><button id="f-go" class="primary">Lancer le flash</button></div>
+        <p class="note" id="f-phrase"></p>
+        <div id="f-prog" class="hidden"><div class="bar"><i id="f-bar" style="width:0"></i></div><p class="note" id="f-step"></p></div></div>
+    </div>
+
+    <div class="wrap hidden" id="view-hist">
+      <div class="card"><h2>Historique local</h2>
+        <div class="row"><input id="h-q" placeholder="Marque, modèle, ticket…" style="flex:1"><input id="h-date" type="date"><button id="h-go" class="primary">Rechercher</button></div>
+        <table style="margin-top:14px"><thead><tr><th>Date</th><th>Appareil</th><th>Type</th><th>Ticket</th><th>Causes / résultat</th><th></th></tr></thead><tbody id="h-rows"></tbody></table>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="toast"></div>
+<script src="app.js"></script>
+</body></html>
