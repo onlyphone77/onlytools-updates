@@ -40,6 +40,17 @@ class Api(object):
     def __init__(self, base):
         self.base = base
 
+    def restart(self):
+        """Relance Only Tools (après mise à jour) : nouveau processus qui attend la fermeture de celui-ci."""
+        import subprocess
+        env = dict(os.environ, OPD_WAIT="3")
+        kw = {"start_new_session": True} if sys.platform != "win32" else {"creationflags": 0x00000008 | 0x00000200}
+        subprocess.Popen([sys.executable, "-W", "ignore", "-m", "onlyphone.desktop"], cwd=os.path.dirname(HERE), env=env, **kw)
+        import webview
+        for w in list(webview.windows):
+            w.destroy()
+        os._exit(0)
+
     def open_report(self, rid):
         # Le navigateur par défaut gère l'impression « Enregistrer en PDF » de façon fiable
         if isinstance(rid, str) and rid.isalnum():
@@ -130,6 +141,8 @@ def _log_to_file_if_no_console():
 
 def main():
     _log_to_file_if_no_console()
+    if os.environ.get("OPD_WAIT"):  # relance après mise à jour : laisser l'ancienne instance se fermer
+        time.sleep(float(os.environ.pop("OPD_WAIT")))
     import webview
     from .server import serve
     port = 8765

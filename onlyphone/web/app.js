@@ -375,19 +375,32 @@ $("f-go").onclick = async () => {
 };
 
 api("/api/tests").then((t) => tests = t);
+function updModal(title, text, btns) {
+  $("upd-title").textContent = title; $("upd-text").innerHTML = text; $("upd-btns").innerHTML = btns || "";
+  $("upd-modal").classList.toggle("hidden", !title);
+}
+async function installUpdate(u) {
+  updModal("Mise à jour " + u.latest + " en cours…", esc(u.notes || "") + "<br>Ne fermez pas Only Tools, il redémarre tout seul.");
+  try {
+    await api("/api/update/install", {});
+    updModal("Mise à jour installée", "Only Tools redémarre…");
+    setTimeout(() => { if (window.pywebview && window.pywebview.api) window.pywebview.api.restart(); else location.reload(); }, 1500);
+  } catch (e) {
+    updModal("Mise à jour " + u.latest + " disponible", "L'installation automatique n'a pas abouti : " + esc(e.message),
+      '<button id="upd-retry" class="primary">Réessayer</button><button id="upd-later">Plus tard</button>');
+    $("upd-retry").onclick = () => installUpdate(u); $("upd-later").onclick = () => updModal("");
+  }
+}
 async function checkUpdate(force) {
   try {
     const u = await api("/api/update" + (force ? "?force=1" : ""));
-    let h = `Version ${esc(u.current)}`;
-    if (u.installed) h += ` · ${pill("v" + u.installed + " installée : redémarrez", "ok")}`;
-    else if (u.available && !window._updToast) { window._updToast = 1; toast("🔔 Mise à jour " + u.latest + " disponible : cliquez sur « Installer » en bas à gauche."); }
-    if (u.installed) {} else if (u.available) h += `<div class="alert info" style="margin-top:6px">${ICON.info}<div><b>Mise à jour ${esc(u.latest)} disponible</b><br>${esc(u.notes || "")}<br><button id="upd-go" class="primary" style="margin-top:6px">Installer</button></div></div>`;
-    else if (u.configured) h += ` · <a href="#" id="upd-chk" style="color:var(--gold)">vérifier</a>`;
-    $("upd").innerHTML = h;
-    if ($("upd-go")) $("upd-go").onclick = async () => { $("upd-go").disabled = true; toast("Téléchargement de la mise à jour…");
-      try { await api("/api/update/install", {}); toast("Mise à jour installée : fermez et rouvrez Only Tools."); } catch (e) { toast(e.message); } checkUpdate(); };
+    $("upd").innerHTML = `Version ${esc(u.current)}` + (u.configured && !u.available ? ` · <a href="#" id="upd-chk" style="color:var(--gold)">vérifier</a>` : "");
     if ($("upd-chk")) $("upd-chk").onclick = (e) => { e.preventDefault(); checkUpdate(true); };
+    if (u.available && !u.installed && !window._updRunning) {
+      if (lastFlash && lastFlash.state === "en cours") return;  // jamais pendant un flash : réessai au prochain contrôle
+      window._updRunning = 1; installUpdate(u);
+    }
   } catch (e) { /* hors ligne */ }
 }
-checkUpdate(); setInterval(checkUpdate, 6 * 3600 * 1000);
+setTimeout(checkUpdate, 1500); setInterval(checkUpdate, 3600 * 1000);
 poll(); setInterval(() => { if (!document.hidden) poll(); }, 2000);
