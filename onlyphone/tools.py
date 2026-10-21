@@ -19,10 +19,13 @@ def find_tool(name):
     ]
     found = shutil.which(exe)
     if not found:
-        if name == "adb":
+        if name == "adb":  # emplacements habituels de Platform-Tools (SDK Android ou téléchargement manuel)
             for base in (os.environ.get("ANDROID_HOME"), os.environ.get("ANDROID_SDK_ROOT"),
-                         os.path.join(home, "Library", "Android", "sdk"),
-                         os.path.join(os.environ.get("LOCALAPPDATA", ""), "Android", "Sdk")):
+                         os.path.join(home, "Library", "Android", "sdk"), os.path.join(home, "Library", "Android"),
+                         os.path.join(os.environ.get("LOCALAPPDATA", ""), "Android", "Sdk"),
+                         home, os.path.join(home, "Downloads"), os.path.join(home, "Téléchargements"),
+                         os.path.join(home, "Desktop"), os.path.join(home, "Bureau"), os.path.join(home, "Documents"),
+                         "/Applications", "C:\\", "C:\\Android", os.environ.get("ProgramFiles", "")):
                 if base:
                     candidates.append(os.path.join(base, "platform-tools", exe))
         if name == "cfgutil":  # Apple Configurator (Mac App Store), même sans « outils d'automatisation »

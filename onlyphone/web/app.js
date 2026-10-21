@@ -380,7 +380,8 @@ async function checkUpdate(force) {
     const u = await api("/api/update" + (force ? "?force=1" : ""));
     let h = `Version ${esc(u.current)}`;
     if (u.installed) h += ` · ${pill("v" + u.installed + " installée : redémarrez", "ok")}`;
-    else if (u.available) h += `<div class="alert info" style="margin-top:6px">${ICON.info}<div><b>Mise à jour ${esc(u.latest)} disponible</b><br>${esc(u.notes || "")}<br><button id="upd-go" class="primary" style="margin-top:6px">Installer</button></div></div>`;
+    else if (u.available && !window._updToast) { window._updToast = 1; toast("🔔 Mise à jour " + u.latest + " disponible : cliquez sur « Installer » en bas à gauche."); }
+    if (u.installed) {} else if (u.available) h += `<div class="alert info" style="margin-top:6px">${ICON.info}<div><b>Mise à jour ${esc(u.latest)} disponible</b><br>${esc(u.notes || "")}<br><button id="upd-go" class="primary" style="margin-top:6px">Installer</button></div></div>`;
     else if (u.configured) h += ` · <a href="#" id="upd-chk" style="color:var(--gold)">vérifier</a>`;
     $("upd").innerHTML = h;
     if ($("upd-go")) $("upd-go").onclick = async () => { $("upd-go").disabled = true; toast("Téléchargement de la mise à jour…");
