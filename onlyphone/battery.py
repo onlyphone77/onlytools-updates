@@ -119,6 +119,8 @@ def assess(raw):
     if res["capacity_pct"] is None:
         un.append("Capacité maximale / santé en % : non exposée par l'interface utilisée.")
 
+    if res["cycles"] == 0 and res["level"] is not None and res["level"] <= 1:
+        an.append("Données batterie aberrantes (0 cycle, %d %%) : la batterie ne communique probablement pas avec la carte." % res["level"])
     bms = raw.get("bms_health")
     if bms:
         res["bms_health"] = BMS_LABELS.get(bms, bms)

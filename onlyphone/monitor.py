@@ -111,6 +111,7 @@ class Monitor(object):
         self.tools = {}
         self.panic_info = {}   # udid -> résultat de la dernière vérification
         self.blacklist = {}    # imei -> {status, source, checked_at} (saisi par le réparateur)
+        self.timeline = []     # apparitions/disparitions des iPhone (analyse des redémarrages en boucle)
         self._panic_seen = {}  # udid -> noms de fichiers déjà vus (session)
         self._panic_busy = set()
         self._panic_at = {}    # udid -> dernière vérification
@@ -165,6 +166,13 @@ class Monitor(object):
             self._enrich(d, now)
         with self.lock:
             self.devices = new
+        for k, src in [(k, new) for k in set(new) - set(old)] + [(k, old) for k in set(old) - set(new)]:
+            d = src[k]
+            mode = d.get("apple_mode") or ("normal" if d.get("transport") == "lockdown" else None)
+            if mode:
+                self.timeline.append({"t": now, "kind": "connexion" if src is new else "déconnexion", "mode": mode,
+                                      "model": d.get("model_code") or ""})
+        self.timeline = [e for e in self.timeline if now - e["t"] < 7200]
         for k in set(new) - set(old):
             udid = new[k].get("serial")
             gone = self._gone_at.pop(udid, None) if new[k]["transport"] == "lockdown" else None
@@ -286,6 +294,7 @@ class Monitor(object):
         self._panic_seen[udid] = names | (seen or set())
         _, hyps = analysis.analyze_ios_panics(parsed)
         info = {"checked_at": time.time(), "count": len(parsed), "new": new, "hypotheses": hyps[:3],
+                "_parsed": [{"text": p["text"][:3000], "summary": p["summary"], "missing_sensors": p["missing_sensors"]} for p in parsed],
                 "latest": [{"name": p["name"], "date": p["date"], "summary": p["summary"][:200],
                             "missing_sensors": p["missing_sensors"]} for p in sorted(parsed, key=lambda x: x["name"], reverse=True)[:5]]}
         with self.lock:
@@ -303,10 +312,22 @@ class Monitor(object):
             for d in self.devices.values():
                 pub = {k: v for k, v in d.items() if k not in ("serial",)}
                 pub["serial_masked"] = mask(d.get("serial"))
-                pub["panic_info"] = self.panic_info.get(d.get("serial"))
+                pi = self.panic_info.get(d.get("serial"))
+                pub["panic_info"] = {k: v for k, v in pi.items() if k != "_parsed"} if pi else None
                 pub["blacklist"] = self.blacklist.get((d.get("details") or {}).get("imei") or "")
                 devs.append(pub)
-            return {"devices": sorted(devs, key=lambda x: x.get("connected_since", 0)),
+            from .deadphone import analyze_bootloop
+            from . import verdict
+            loop = analyze_bootloop(self.timeline, time.time())
+            if loop:
+                loop["model"] = next((e["model"] for e in reversed(self.timeline) if e["model"]), "")
+            for pub, d in zip(devs, self.devices.values()):
+                pi = self.panic_info.get(d.get("serial")) or {}
+                pub["verdict"] = verdict.compute(d, pi.get("_parsed"), loop)
+            if loop:  # iPhone momentanément déconnecté : on réutilise ses derniers panics connus
+                last = max(self.panic_info.values(), key=lambda x: x.get("checked_at", 0), default={})
+                loop["verdict"] = verdict.compute(None, last.get("_parsed"), loop)
+            return {"devices": sorted(devs, key=lambda x: x.get("connected_since", 0)), "bootloop": loop,
                     "events": list(self.events[-10:]), "tools": dict(self.tools)}
 
     def get(self, key):

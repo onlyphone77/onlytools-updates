@@ -133,7 +133,7 @@ async def _panics(udid, limit):
             for n in panics:
                 try:
                     data = await asyncio.wait_for(m.afc.get_file_contents(n), 20)
-                    out.append({"name": n.rsplit("/", 1)[-1], "text": data[:400000].decode("utf-8", "replace")})
+                    out.append({"name": n.rsplit("/", 1)[-1], "text": data[:2000000].decode("utf-8", "replace")})
                 except Exception:
                     continue
         finally:

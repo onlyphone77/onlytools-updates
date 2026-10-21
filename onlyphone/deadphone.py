@@ -98,6 +98,12 @@ AMMETER = [
      "causes": [("Écran, nappe ou rétroéclairage — l'iPhone est peut-être allumé", "matériel", "moyenne",
                  "Vérifier vibration/son/détection USB, tester avec un écran connu bon."),
                 ("Circuit d'affichage sur la carte mère", "matériel", "faible", "Si un écran connu bon reste noir.")]},
+    {"id": "logo_loop", "label": "Symptôme : boucle sur la pomme, non détecté par l'ordinateur",
+     "causes": [("iOS endommagé", "logiciel", "moyenne", "Forcer le mode Récupération (Vol+, Vol−, maintenir latéral jusqu'au logo câble) puis « Ranimer », sinon « Restaurer »."),
+                ("Batterie qui s'effondre au démarrage", "alimentation", "moyenne", "Tester avec une batterie connue bonne ou une alimentation de labo."),
+                ("Pièce défectueuse qui fait planter le démarrage (nappe de charge, Face ID, écran)", "matériel", "moyenne",
+                 "iPhone sur batterie de test, débrancher les nappes une par une jusqu'à l'arrêt de la boucle."),
+                ("Mémoire NAND ou carte mère", "matériel", "faible", "Si la restauration échoue (4013/4014/9) ou si la boucle persiste tout débranché.")]},
     {"id": "charge_only", "label": "Consomme en charge mais s'éteint dès qu'on débranche",
      "causes": [("Batterie hors service ou connecteur batterie", "alimentation", "élevée", "Remplacer la batterie / vérifier son connecteur.")]},
 ]
@@ -109,3 +115,54 @@ def ammeter(pattern_id):
         return []
     return [{"title": t, "category": c, "confidence": conf, "next_checks": [chk], "source": "ampèremètre : " + p["label"]}
             for t, c, conf, chk in p["causes"]]
+
+
+# ---------- Redémarrage en boucle : analyse de la chronologie USB ----------
+def analyze_bootloop(timeline, now, window=1800):
+    """timeline : [{t, kind: connexion|déconnexion, mode: recovery|dfu|normal}] d'un même iPhone.
+    Retourne None si pas de boucle, sinon {cycles, résumé, hypothèses}. Pure, testable."""
+    ev = sorted((e for e in timeline if now - e["t"] <= window), key=lambda e: e["t"])
+    sessions, opened = [], {}
+    for e in ev:
+        if e["kind"] == "connexion":
+            opened[e["mode"]] = e["t"]
+        elif e["mode"] in opened:
+            sessions.append({"mode": e["mode"], "dur": e["t"] - opened.pop(e["mode"])})
+    cycles = sum(1 for e in ev if e["kind"] == "connexion")
+    if cycles < 2:
+        return None
+    modes = {s["mode"] for s in sessions} | {e["mode"] for e in ev}
+    durs = sorted(s["dur"] for s in sessions) or [0]
+    med = durs[len(durs) // 2]
+    H = []
+    add = lambda t, c, conf, checks: H.append({"title": t, "category": c, "confidence": conf, "next_checks": checks, "source": "chronologie USB"})
+    if "normal" not in modes:
+        summary = ("%d apparitions en mode %s en %d min, jamais démarré sous iOS (durée médiane %.0f s)."
+                   % (cycles, "Récupération" if "recovery" in modes else "DFU", max(1, (ev[-1]["t"] - ev[0]["t"]) // 60), med))
+        add("iOS ne démarre pas (système endommagé ou mise à jour interrompue)", "logiciel", "moyenne",
+            ["Essayer « Sortir du mode Récupération » une fois.", "Sinon « Ranimer » (garde les données si possible), puis « Restaurer »."])
+        add("Mémoire NAND défaillante", "matériel", "moyenne" if med < 20 else "faible",
+            ["Si la ranimation/restauration échoue (4013/4014/9) : NAND ou processeur."])
+        if med < 15:
+            add("Coupure d'alimentation au démarrage (batterie ou circuit PMU)", "alimentation", "moyenne",
+                ["Tester avec une batterie connue bonne ou une alimentation de labo (lire la consommation).",
+                 "Vérifier le connecteur batterie."])
+    else:
+        nd = sorted(s["dur"] for s in sessions if s["mode"] == "normal") or [med]
+        nmed = nd[len(nd) // 2]
+        summary = "%d redémarrages en %d min ; iOS tient environ %.0f s avant de redémarrer." % (
+            cycles, max(1, (ev[-1]["t"] - ev[0]["t"]) // 60), nmed)
+        if 120 <= nmed <= 240:
+            add("Capteur manquant / watchdog (redémarrage toutes les ~3 min)", "matériel", "élevée",
+                ["Lire les panics (carte « Panics ») : le capteur cité indique la nappe.",
+                 "Souvent : nappe du connecteur de charge, nappe power/volume, capteur de proximité."])
+        elif nmed < 60:
+            add("Alimentation instable (batterie / PMU) ou NAND", "alimentation", "moyenne",
+                ["Tester avec une batterie connue bonne.", "Lire les panics si l'iPhone reste assez longtemps allumé."])
+        else:
+            add("Plantage système (logiciel, application, ou panne matérielle intermittente)", "indéterminé", "faible",
+                ["Lire les panics.", "Mettre à jour / ranimer iOS."])
+    if any(s["dur"] < 3 for s in sessions):
+        add("Connexion USB qui coupe (câble ou connecteur de charge)", "matériel", "faible",
+            ["Changer de câble et de port ; inspecter le connecteur du téléphone."])
+    return {"cycles": cycles, "summary": summary, "hypotheses": H, "updated": now}

@@ -8,6 +8,23 @@ const ICON = {
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>',
 };
 let toolsState = {}, cfgDevs = null, lastFlash = null;
+function verdictHtml(v) {
+  if (!v) return "";
+  const col = v.pct >= 60 ? "var(--ok)" : v.pct >= 40 ? "var(--warn)" : "var(--info)";
+  return `<div class="card" style="border:2px solid ${col};margin:12px 0 0;padding:16px 18px">
+    <div class="row" style="justify-content:space-between"><div><div class="note" style="margin:0">🎯 PIÈCE PRIORITAIRE</div>
+    <div style="font-size:22px;font-weight:700">${esc(v.part)}</div></div><div style="font-size:30px;font-weight:800;color:${col}">${v.pct} %</div></div>
+    <div style="margin-top:8px"><b>À faire :</b> ${esc(v.action)}</div>
+    <div class="note" style="margin-top:6px">Pourquoi : ${v.why.map(esc).join(" · ")}</div>
+    ${v.next_part ? `<div class="note" style="margin-top:6px"><b>Si ça ne règle pas →</b> ${esc(v.next_part)} : ${esc(v.next_action)}</div>` : ""}</div>`;
+}
+function renderLoop(L) {
+  const h = L ? `<div class="alert warn">${ICON.warn}<div><b>Redémarrage en boucle détecté${L.model ? " (" + esc(L.model) + ")" : ""}</b><br>${esc(L.summary)}</div></div>` +
+    (devices.length ? "" : verdictHtml(L.verdict)) : "";
+  if (L && !window._loopToast) { window._loopToast = 1; toast("⚠ Redémarrage en boucle détecté : analyse affichée"); }
+  ["d-loop", "f-loop"].forEach((id) => { if ($(id)) $(id).innerHTML = h; });
+  if (L && !devices.length) { $("nodevice").innerHTML = '<div style="max-width:720px">' + h + '<p class="note">L\'iPhone n\'est pas branché ou est en train de redémarrer.</p></div>'; }
+}
 function renderLastFlash() {
   const f = lastFlash;
   let h = "";
@@ -36,7 +53,7 @@ async function poll() {
   try {
     const st = await api("/api/status");
     for (const e of st.events) if (e.t > lastEventT) { toast(e.label); lastEventT = e.t; }
-    devices = st.devices; lastFlash = st.last_flash; renderLastFlash();
+    devices = st.devices; lastFlash = st.last_flash; renderLastFlash(); renderLoop(st.bootloop);
     if (!devices.find((d) => d.key === selected)) { selected = devices.length ? devices[devices.length - 1].key : null; resetResults(); }
     const t = st.tools || {}; toolsState = t;
     $("toolsinfo").innerHTML = `<div class="tool"><i><span class="dot ${t.adb ? "on" : "off"}"></span>Android (ADB)</i><i>${t.adb ? "prêt" : "absent"}</i></div>
@@ -68,7 +85,7 @@ function renderDevice() {
     (det.origin ? pill(det.origin, det.origin.startsWith("Neuf") ? "ok" : "warn") : "") +
     (d.usb && d.usb.special_mode ? pill(d.usb.special_mode, "bad") : "") +
     (d.connected_since ? pill("branché à " + new Date(d.connected_since * 1000).toLocaleTimeString().slice(0, 5), "info") : "");
-  $("d-hints").innerHTML = (d.hints || []).map((h) => alertBox(h, "warn")).join("") + (d.apple_mode === "dfu" ? DFU_EXIT_HTML : "");
+  $("d-hints").innerHTML = verdictHtml(d.verdict) + (d.hints || []).map((h) => alertBox(h, "warn")).join("") + (d.apple_mode === "dfu" ? DFU_EXIT_HTML : "");
   $("btn-exitrec").classList.toggle("hidden", d.apple_mode !== "recovery");
   const ok = d.state === "reconnu", running = busy || (job && !job.done);
   $("btn-diag").disabled = !ok || running; $("btn-charge").disabled = !ok || running;
@@ -98,9 +115,10 @@ function renderPanicAuto(d) {
   $("panic-auto").innerHTML = `<div class="row">${p.count ? pill(p.count + " panic(s) sur l'iPhone", "warn") : pill("Aucun panic sur l'iPhone", "ok")}
       ${(p.new || []).length ? pill((p.new.length) + " NOUVEAU(X) depuis le branchement", "bad") : ""}
       <span class="note" style="margin:0">vérifié à ${new Date(p.checked_at * 1000).toLocaleTimeString().slice(0, 5)} · surveillance continue</span></div>` +
+    ((p.hypotheses || []).length ? '<details style="margin-top:8px"><summary class="note" style="cursor:pointer">Détail de l\'analyse des panics</summary>' : "") +
     (p.hypotheses || []).map((h) => `<div class="hyp c-${esc(h.confidence)}" style="margin-top:10px"><h3>${esc(h.title)} ${pill(h.category, "gold")}
       ${pill("confiance " + h.confidence, h.confidence === "élevée" ? "bad" : h.confidence === "moyenne" ? "warn" : "info")}</h3>
-      <div class="ev">${esc(h.next_checks[0] || "")}</div></div>`).join("") +
+      <div class="ev">${esc(h.next_checks[0] || "")}</div></div>`).join("") + ((p.hypotheses || []).length ? "</details>" : "") +
     (p.latest || []).map((x) => `<div class="panic">${isNew(x.name) ? pill("NOUVEAU", "bad") + " " : ""}<b>${esc(x.date || x.name)}</b>
       ${x.missing_sensors ? " · capteur(s) manquant(s) : <code>" + esc(x.missing_sensors) + "</code>" : ""}<br><code>${esc(x.summary)}</code></div>`).join("");
 }

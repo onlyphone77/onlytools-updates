@@ -216,6 +216,9 @@ def analyze(ev):
 # (motif, indice lisible, piste, catégorie). Pistes issues des retours d'atelier connus :
 # à confirmer par mesure / échange de pièce, jamais une certitude.
 IOS_PANIC_RULES = [
+    (r"SMC BSC failure|BSC failure|\bTB0[TV]\b", "Batterie non reconnue par la carte (capteurs batterie TB0T/TB0V illisibles)",
+     "Tester avec une batterie d'origine connue bonne ; contrôler le connecteur batterie (oxydation, broches) ; si persistant : ligne batterie / jauge sur la carte mère.",
+     "alimentation"),
     (r"missing sensor\(s\):[^\n\"]*\b(mic1|mic2|prs0)\b", "Capteur manquant (micro / baromètre)",
      "Nappe du connecteur de charge ou nappe power/volume (selon modèle) — vérifier connecteur, puis tester une nappe de remplacement.", "matériel"),
     (r"missing sensor\(s\):[^\n\"]*\bTG0[BV]\b", "Capteur de température batterie manquant (TG0B/TG0V)",
@@ -256,9 +259,9 @@ def parse_ios_panic(name, text):
             panic = _json.loads(rest).get("panicString", "")
         except ValueError:
             panic = ""
-    if not panic:
-        m = re.search(r'"panicString"\s*:\s*"(.{0,4000}?)"', body, re.S)
-        panic = m.group(1).replace("\\n", "\n") if m else body[:4000]
+    if not panic:  # fichier tronqué ou très long : lecture directe de la chaîne échappée
+        m = re.search(r'"panicString"\s*:\s*"((?:[^"\\]|\\.){1,20000})', body)
+        panic = (m.group(1).replace("\\n", "\n").replace("\\/", "/").replace('\\"', '"') if m else body[:4000])
     m = re.search(r"(\d{4}-\d\d-\d\d)", name or "")
     sensors = re.findall(r"missing sensor\(s\):\s*([^\n\"]+)", panic, re.I)
     first = next((l.strip() for l in panic.splitlines() if l.strip()), "")
