@@ -78,6 +78,39 @@ def library():
     return out
 
 
+def import_local(src):
+    """Ajoute un .ipsw de l'ordinateur à la bibliothèque (lien si même disque, sinon copie en arrière-plan)."""
+    import shutil
+    import threading
+    import zipfile
+    src = os.path.realpath(os.path.expanduser(src or ""))
+    if not src.lower().endswith(".ipsw") or not os.path.isfile(src):
+        raise ValueError("Choisissez un fichier .ipsw")
+    try:
+        with zipfile.ZipFile(src) as z:
+            if "BuildManifest.plist" not in z.namelist():
+                raise ValueError("Ce fichier n'est pas un firmware Apple valide")
+    except zipfile.BadZipFile:
+        raise ValueError("Fichier .ipsw illisible ou incomplet")
+    dst = os.path.join(fw_dir(), os.path.basename(src))
+    if os.path.exists(dst):
+        return {"ok": True, "message": "Déjà dans la bibliothèque"}
+    try:
+        os.link(src, dst)
+        return {"ok": True, "message": "Ajouté à la bibliothèque"}
+    except OSError:
+        def copy():
+            tmp = dst + ".part"
+            try:
+                shutil.copyfile(src, tmp)
+                os.replace(tmp, dst)
+            except OSError:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+        threading.Thread(target=copy, daemon=True).start()
+        return {"ok": True, "message": "Copie en cours (quelques minutes pour 8 Go)…"}
+
+
 def local_path(filename):
     f = os.path.basename(filename or "")
     p = os.path.join(fw_dir(), f)

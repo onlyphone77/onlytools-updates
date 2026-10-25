@@ -10,7 +10,7 @@
       <div><b>ONLY <span>TOOLS</span></b><small>par Only Phone</small></div></div>
     <nav class="nav">
       <button id="tab-diag" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Diagnostic</button>
-      <button id="tab-hist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>Historique</button>
+      <button id="tab-hist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>Historique<span class="count hidden" id="h-count"></span></button>
       <button id="tab-flash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>Flash iOS</button>
     </nav>
     <div class="sec-title" id="dev-count">Appareils branchés</div>
@@ -35,6 +35,8 @@
             <button id="btn-pair" class="hidden">Demander l'autorisation (« Se fier »)</button>
             <button id="btn-diag" class="primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Diagnostic complet</button>
             <button id="btn-charge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>Test de charge (20 s)</button>
+            <button id="btn-restart" class="ghost hidden" title="Redémarrer l'iPhone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Redémarrer</button>
+            <button id="btn-shutdown" class="ghost hidden" title="Éteindre l'iPhone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M5.6 6.6a8 8 0 1 0 12.8 0"/></svg>Éteindre</button>
             <button id="btn-export" class="ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Rapport PDF</button>
           </div></div>
           <div class="score hidden" id="hero-score"></div></div>
@@ -50,6 +52,18 @@
 
         <div class="card hidden" id="panic-card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Panics (redémarrages) — surveillance automatique</h2><div id="panic-auto"></div></div>
 
+        <div class="two ios-only hidden">
+          <div class="card" id="photos-card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 9"/></svg>Photos du client</h2>
+            <p class="note" style="margin:0 0 12px">Copie les photos et vidéos de l'iPhone sur ce Mac (dossier Images › Only Tools), <b>avec l'accord du client</b>. Rien n'est supprimé ni envoyé ailleurs.</p>
+            <label class="note" style="display:block;margin:0 0 6px"><input type="checkbox" id="ph-date" checked> Nommer par date de prise de vue</label>
+            <label class="note" style="display:block;margin:0 0 12px"><input type="checkbox" id="ph-jpg"> Convertir les photos HEIC en JPG (lisibles partout)</label>
+            <div class="row"><button id="ph-go" class="primary">Exporter toutes les photos</button><button id="ph-open" class="hidden">Ouvrir le dossier</button><button id="ph-cancel" class="ghost hidden">Annuler</button></div>
+            <div id="ph-prog" class="hidden" style="margin-top:12px"><div class="bar"><i id="ph-bar" style="width:0"></i></div><p class="note" id="ph-step"></p></div></div>
+          <div class="card" id="apps-card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span id="apps-title">Applications</span></h2>
+            <div class="row"><button id="apps-load">Afficher les applications</button><input id="apps-q" class="hidden" placeholder="Rechercher une application…" style="flex:1"><button id="apps-csv" class="ghost hidden">Exporter la liste</button></div>
+            <div id="apps-list" class="apps"></div></div>
+        </div>
+
         <div class="card hidden" id="charge-card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>Test de charge</h2>
           <svg id="chart" class="chart" viewBox="0 0 600 170" preserveAspectRatio="none"></svg>
           <div id="charge-sum" class="note"></div></div>
@@ -60,9 +74,8 @@
           <div class="bar"><i id="bar" style="width:0"></i></div><p id="step" class="note"></p></div>
 
         <div id="results" class="hidden">
-          <div class="three">
-            <div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M7 14l4-4 3 3 5-6"/></svg><span id="score-title">Bilan</span></h2><div id="score"></div></div>
-            <div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6z"/></svg>Pièces d'origine (indices)</h2><div id="auth"></div></div>
+          <div class="two">
+            <div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M7 14l4-4 3 3 5-6"/></svg><span id="score-title">Bilan</span></h2><div id="score"></div><div id="auth"></div></div>
             <div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>Pannes connues du modèle</h2><div id="faults"></div></div>
           </div>
           <div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Causes possibles &amp; recommandations</h2><div id="hyps"></div></div>
@@ -81,6 +94,8 @@
     </div>
 
     <div class="wrap hidden" id="view-flash">
+      <div class="card"><div class="steps" id="f-steps"><div class="step"><i>1</i>Appareil</div><div class="step"><i>2</i>Firmware</div>
+        <div class="step"><i>3</i>Mode</div><div class="step"><i>4</i>Confirmation</div></div></div>
       <div id="f-last"></div><div id="f-loop"></div>
       <div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>Appareil cible</h2><div id="f-target"></div>
         <div class="row" style="margin-top:12px">
@@ -103,8 +118,16 @@
         <p class="note">Seuls les firmwares <b>signés</b> par Apple peuvent être installés. Taille : 6 à 12 Go chacun.</p><div id="f-list" class="note">Sélectionnez un iPhone.</div></div>
       <div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Bibliothèque locale</h2><div id="f-lib"></div><p class="note" id="f-dir"></p></div>
       <div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>Lancer le flash</h2>
-        <div class="row"><label><input type="radio" name="f-mode" value="restore-update" checked> <b>Conserver les données</b> (mise à jour / réparation iOS)</label>
-          <label><input type="radio" name="f-mode" value="restore-erase"> <b>Effacer tout</b> (restauration usine)</label></div>
+        <div class="modes"><label class="mode"><input type="radio" name="f-mode" value="restore-update" checked><span><b>Conserver les données</b>
+            Réinstalle iOS en gardant les données (mise à jour / réparation). À essayer en premier.</span></label>
+          <label class="mode danger"><input type="radio" name="f-mode" value="restore-erase"><span><b>Effacer tout</b>
+            Restauration usine : toutes les données sont supprimées, <u>irréversible</u>.</span></label></div>
+        <div class="after" id="f-after"><div class="sub-h" style="margin-top:14px">Après le flash (mode « Effacer tout »)</div>
+          <div id="f-after-opts"><label class="note" style="display:block;margin:0 0 6px"><input type="checkbox" id="f-activate" checked> Activer automatiquement (serveurs Apple, nécessite Internet)</label>
+          <label class="note" style="display:block;margin:0 0 6px"><input type="checkbox" id="f-skip"> Passer l'assistant de configuration (Apple Configurator, langue française)</label></div>
+          <p class="note" style="margin:4px 0 8px">Si l'iPhone est lié à un compte iCloud, Apple refuse l'activation : le client doit saisir son identifiant Apple. Aucun contournement.</p>
+          <div class="row"><button id="f-act-now" class="ghost">Activer l'iPhone maintenant</button><button id="f-skip-now" class="ghost">Passer la configuration maintenant</button></div>
+          <p class="note" id="f-after-st"></p></div>
         <div class="alert warn" style="margin-top:10px"><div>Avant de flasher : sauvegarde du client, batterie ≥ 30 %, câble d'origine, ne pas débrancher.
           L'effacement est <b>irréversible</b>. Après une restauration, le verrouillage d'activation iCloud reste actif : le client doit connaître son identifiant Apple.</div></div>
         <div class="row" style="margin-top:10px"><input id="f-confirm" placeholder="Tapez FLASH pour confirmer" style="flex:1"><button id="f-go" class="primary">Lancer le flash</button></div>
@@ -115,7 +138,9 @@
     <div class="wrap hidden" id="view-hist">
       <div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>Historique local</h2>
         <div class="row"><input id="h-q" placeholder="Marque, modèle, ticket…" style="flex:1"><input id="h-date" type="date"><button id="h-go" class="primary">Rechercher</button></div>
-        <table style="margin-top:14px"><thead><tr><th>Date</th><th>Appareil</th><th>Type</th><th>Ticket</th><th>Causes / résultat</th><th></th></tr></thead><tbody id="h-rows"></tbody></table>
+        <div class="filters" id="h-filters"><span class="chip on" data-f="">Tout</span><span class="chip" data-f="diagnostic">Diagnostics</span>
+          <span class="chip" data-f="flash">Flash</span><span class="chip" data-f="charge">Tests de charge</span><span class="chip" data-f="operation">Photos / applis</span><span class="chip" data-f="fail">Échecs</span></div>
+        <table><thead><tr><th>Bilan</th><th>Date</th><th>Appareil</th><th>Opération</th><th>Résultat</th><th></th></tr></thead><tbody id="h-rows"></tbody></table>
       </div>
     </div>
   </main>

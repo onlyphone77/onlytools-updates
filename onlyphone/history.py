@@ -59,9 +59,12 @@ def search(q="", date=""):
             r = load(name[:-5])
         except (ValueError, OSError):
             continue
-        dev = r.get("device", {})
+        dev, res = r.get("device", {}), r.get("result") or {}
+        if r.get("kind") == "diagnostic" and res and not res.get("score"):  # rapports d'avant le bilan
+            from . import insights
+            res = dict(res, score=insights.score(res, insights.authenticity(res)))
         hay = " ".join(str(dev.get(k) or "") for k in ("brand", "model", "model_code", "serial_masked", "os")) + " " + (r.get("ticket") or "") \
-            + " " + str((r.get("flash") or {}).get("error") or "") + " " + r.get("kind", "")
+            + " " + str((r.get("flash") or {}).get("error") or "") + " " + r.get("kind", "") + " " + str((r.get("operation") or {}).get("label") or "")
         day = time.strftime("%Y-%m-%d", time.localtime(r.get("created", 0)))
         if q and q not in hay.lower():
             continue
@@ -71,5 +74,9 @@ def search(q="", date=""):
                     "device": {k: dev.get(k) for k in ("brand", "model", "os", "os_version", "serial_masked")},
                     "ticket": r.get("ticket"), "hypotheses": len((r.get("result") or {}).get("hypotheses") or []),
                     "flash": {k: (r.get("flash") or {}).get(k) for k in ("operation", "state", "error")} if r.get("flash") else None,
-                    "causes": [h["title"] for h in ((r.get("flash") or {}).get("explain") or [])][:2]})
+                    "causes": [h["title"] for h in ((r.get("flash") or {}).get("explain") or [])][:2],
+                    "score": (res.get("score") or {}).get("score"), "grade": (res.get("score") or {}).get("grade"),
+                    "top": ((res.get("hypotheses") or [{}])[0]).get("title"),
+                    "charge": (r.get("charge_test") or {}).get("verdict"),
+                    "operation": {k: (r.get("operation") or {}).get(k) for k in ("label", "state", "error", "message")} if r.get("operation") else None})
     return sorted(out, key=lambda x: -(x["created"] or 0))

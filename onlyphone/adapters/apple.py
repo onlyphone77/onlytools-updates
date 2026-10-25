@@ -5,6 +5,8 @@ le Finder / iTunes. Nécessite que l'utilisateur déverrouille l'appareil et tou
 Seules les commandes de lecture sont appelées (ideviceinfo, idevicediagnostics ioregentry).
 Sans libimobiledevice, l'appareil est seulement reconnu au niveau USB (nom générique).
 """
+import json
+import os
 import plistlib
 import re
 
@@ -72,10 +74,31 @@ def origin_from_model_number(mn):
     return ORIGIN.get(mn[0].upper(), "Préfixe « %s » non répertorié" % mn[0])
 
 
+_MODELS = None
+
+
+def color_from_model_number(mn):
+    """Réf. commerciale (MQ9R3, FQ9R3…) -> (couleur, capacité) ; iOS ne donne plus la couleur depuis 17.4."""
+    global _MODELS
+    if not mn:
+        return None, None
+    if _MODELS is None:
+        try:
+            with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "iphone_models.json"), encoding="utf-8") as f:
+                _MODELS = json.load(f)["models"]
+        except (OSError, ValueError, KeyError):
+            _MODELS = {}
+    mn = mn.upper()
+    hit = _MODELS.get(mn) or _MODELS.get("M" + mn[1:])  # F = reconditionné, N = remplacement, P = gravé
+    return (hit[0], hit[1]) if hit else (None, None)
+
+
 def details_from_info(info):
     """Champs d'atelier (type 3uTools) réellement fournis par lockdown."""
     mn, reg = info.get("ModelNumber"), info.get("RegionInfo")
+    color, capacity = color_from_model_number(mn)
     return {k: v for k, v in (
+        ("color", color), ("capacity", capacity),
         ("serial_number", info.get("SerialNumber")), ("imei", info.get("InternationalMobileEquipmentIdentity")),
         ("imei2", info.get("InternationalMobileEquipmentIdentity2")), ("meid", info.get("MobileEquipmentIdentifier")),
         ("model_number", (mn + (" " + reg if reg else "")) if mn else None),

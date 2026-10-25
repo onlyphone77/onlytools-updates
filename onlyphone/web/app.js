@@ -71,7 +71,7 @@ function renderList() {
   document.querySelectorAll(".dev").forEach((el) => el.onclick = () => { selected = el.dataset.k; resetResults(); renderList(); renderDevice(); });
 }
 const kv = (k, v, copy) => `<div class="kv"><span>${esc(k)}</span><b class="${copy && v ? "copy" : ""}" ${copy && v ? `data-copy="${esc(v)}" title="Cliquer pour copier"` : ""}>${v == null || v === "" ? NA : esc(v)}</b></div>`;
-const DETAILS = [["imei", "IMEI", 1], ["imei2", "IMEI 2", 1], ["meid", "MEID", 1], ["serial_number", "N° de série", 1], ["model_number", "Réf. commerciale"],
+const DETAILS = [["color", "Couleur"], ["capacity", "Capacité"], ["imei", "IMEI", 1], ["imei2", "IMEI 2", 1], ["meid", "MEID", 1], ["serial_number", "N° de série", 1], ["model_number", "Réf. commerciale"],
   ["origin", "Origine"], ["hardware_model", "Carte (modèle matériel)"], ["activation", "Activation"], ["baseband", "Modem"], ["passcode", "Code de verrouillage"],
   ["ram", "RAM"], ["bootloader", "Bootloader"], ["wifi_mac", "Adresse Wi-Fi"], ["bt_mac", "Adresse Bluetooth"]];
 
@@ -94,6 +94,7 @@ function renderDevice() {
   const det = d.details || {};
   $("d-chips").innerHTML = pill(d.state, STATE_CLS[d.state] || "info") +
     pill({adb: "USB · Android", lockdown: "USB · Apple", usb: "USB (bas niveau)"}[d.transport] || "USB", "gold") +
+    (det.color ? pill([det.color, det.capacity].filter(Boolean).join(" · "), "gold") : "") +
     (det.origin ? pill(det.origin, det.origin.startsWith("Neuf") ? "ok" : "warn") : "") +
     (d.usb && d.usb.special_mode ? pill(d.usb.special_mode, "bad") : "") +
     (d.connected_since ? pill("branché à " + new Date(d.connected_since * 1000).toLocaleTimeString().slice(0, 5), "info") : "");
@@ -102,6 +103,10 @@ function renderDevice() {
   const ok = d.state === "reconnu", running = busy || (job && !job.done);
   $("btn-diag").disabled = !ok || running; $("btn-charge").disabled = !ok || running;
   $("btn-pair").classList.toggle("hidden", !(d.transport === "lockdown" && d.state !== "reconnu"));
+  const iosOk = d.transport === "lockdown" && d.state === "reconnu";
+  ["btn-restart", "btn-shutdown"].forEach((i) => { $(i).classList.toggle("hidden", !iosOk); $(i).disabled = running || !!phTask; });
+  document.querySelectorAll(".ios-only").forEach((e) => e.classList.toggle("hidden", !iosOk));
+  if (appsFor && appsFor !== d.key) { appsFor = null; apps = []; renderApps(); }
   $("btn-pair").disabled = running;
   $("d-grid").innerHTML = kv("Marque", d.brand) + kv("Modèle", d.model) + kv("Système", d.os ? d.os + " " + (d.os_version || "") : null) +
     DETAILS.filter(([k]) => det[k]).map(([k, l, c]) => kv(l, det[k], c)).join("") +
@@ -124,9 +129,10 @@ function renderPanicAuto(d) {
   $("panic-card").classList.toggle("hidden", !(d.transport === "lockdown" && d.state === "reconnu"));
   if (!p) { $("panic-auto").innerHTML = '<p class="note">Vérification des panics en cours…</p>'; return; }
   const isNew = (n) => (p.new || []).includes(n);
-  $("panic-auto").innerHTML = `<div class="row">${p.count ? pill(p.count + " panic(s) sur l'iPhone", "warn") : pill("Aucun panic sur l'iPhone", "ok")}
-      ${(p.new || []).length ? pill((p.new.length) + " NOUVEAU(X) depuis le branchement", "bad") : ""}
-      <span class="note" style="margin:0">vérifié à ${new Date(p.checked_at * 1000).toLocaleTimeString().slice(0, 5)} · surveillance continue</span></div>` +
+  $("panic-auto").innerHTML = `<div class="st"><div class="si ${p.count ? "warn" : "ok"}">${p.count ? ICON.warn : ICON.check}</div>
+      <div><b>${p.count ? esc(p.count) + " panic(s) sur l'iPhone" : "Aucun panic sur l'iPhone"}
+      ${(p.new || []).length ? pill((p.new.length) + " NOUVEAU(X) depuis le branchement", "bad") : ""}</b>
+      <p>Vérifié à ${new Date(p.checked_at * 1000).toLocaleTimeString().slice(0, 5)} · rapports d'analyse iOS · surveillance continue</p></div></div>` +
     ((p.hypotheses || []).length ? '<details style="margin-top:8px"><summary class="note" style="cursor:pointer">Détail de l\'analyse des panics</summary>' : "") +
     (p.hypotheses || []).map((h) => `<div class="hyp c-${esc(h.confidence)}" style="margin-top:10px"><h3>${esc(h.title)} ${pill(h.category, "gold")}
       ${pill("confiance " + h.confidence, h.confidence === "élevée" ? "bad" : h.confidence === "moyenne" ? "warn" : "info")}</h3>
@@ -142,6 +148,11 @@ function ring(pct, color, big, small, size) {
       stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - p / 100)}" style="transition:stroke-dashoffset .6s"/></svg>
     <div class="val"><div><b>${big}</b><small>${small}</small></div></div></div>`;
 }
+const KICON = {
+  cycle: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/>', chart: '<path d="M3 3v18h18M7 14l4-4 3 3 5-6"/>',
+  plug: '<path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v5"/>', bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  volt: '<path d="M12 2v20M2 12h20"/>', temp: '<path d="M12 22v-4M8 6a4 4 0 0 1 8 0v8a6 6 0 1 1-8 0z"/>'};
+const kvi = (ic, k, v) => kv(k, v).replace("<span>", `<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${KICON[ic]}</svg>`);
 const HCOL = {"bon": "#4ade80", "dégradé": "#f87171", "à contrôler": "#fbbf24", "inconnu": "#6b6e76"};
 function renderBattery(b, note, el) {
   if (!b) { el.innerHTML = alertBox(note || "Données de batterie non disponibles pour cet appareil.", "info"); return; }
@@ -149,9 +160,9 @@ function renderBattery(b, note, el) {
   el.innerHTML = `<div class="bat">
     ${ring(b.level, lvlCol, b.level != null ? b.level + "%" : "—", "Charge actuelle")}
     ${ring(b.capacity_pct, HCOL[b.health] || "#6b6e76", b.capacity_pct != null ? Math.round(b.capacity_pct) + "%" : "—", "Santé · " + esc(b.health))}
-    <div class="bat-side">${kv("Cycles", b.cycles)}${kv("Capacité (actuelle / origine)", b.full_mah ? b.full_mah + " / " + b.design_mah + " mAh" : null)}
-      ${kv("État", [b.status, b.plugged].filter(Boolean).join(" · "))}${kv("Courant", b.current_ma != null ? b.current_ma + " mA" : null)}
-      ${kv("Tension", b.voltage_v != null ? b.voltage_v + " V" : null)}${kv("Température", b.temp_c != null ? b.temp_c + " °C" : null)}</div></div>
+    <div class="bat-side">${kvi("cycle", "Cycles", b.cycles)}${kvi("chart", "Capacité (actuelle / origine)", b.full_mah ? b.full_mah + " / " + b.design_mah + " mAh" : null)}
+      ${kvi("plug", "État", [b.status, b.plugged].filter(Boolean).join(" · "))}${kvi("bolt", "Courant", b.current_ma != null ? b.current_ma + " mA" : null)}
+      ${kvi("volt", "Tension", b.voltage_v != null ? b.voltage_v + " V" : null)}${kvi("temp", "Température", b.temp_c != null ? b.temp_c + " °C" : null)}</div></div>
     <div class="note">${esc(b.health_basis || "")} ${b.capacity_source ? "— " + esc(b.capacity_source) : ""}<br>La charge actuelle (%) n'indique pas la santé de la batterie.</div>
     ${(b.anomalies || []).map((a) => alertBox(a, "bad")).join("")}
     ${(b.alternatives || []).length && b.health === "inconnu" ? alertBox("Alternatives : " + b.alternatives.join(" · "), "info") : ""}`;
@@ -252,11 +263,10 @@ function renderResults(r) {
   $("hero-score").classList.toggle("hidden", !S);
   if (S) $("hero-score").innerHTML = ring(S.score, SCOL[S.grade], S.grade, S.score + " / 100", 132) +
     `<div class="lbl">${esc(S.label)}</div><div class="sm">${esc((r.battery || {}).health === "dégradé" ? "batterie à remplacer" : "")}</div>`;
-  const A = r.authenticity || [];
-  $("auth").innerHTML = A.length ? A.map((a) => { const c = ASTAT[a.status] || "info";
-    return `<div class="st"><div class="si ${c}">${c === "ok" ? ICON.check : c === "info" ? ICON.info : ICON.warn}</div>
-      <div><b>${esc(a.part)} ${pill(a.status, c)}</b><p>${esc(a.detail)}</p></div></div>`; }).join("")
-    : '<p class="note">Contrôle disponible pour iPhone uniquement.</p>';
+  const A = (r.authenticity || []).filter((a) => a.status !== "non vérifiable");  // seules les pièces réellement contrôlées
+  $("auth").innerHTML = A.length ? '<div class="sub-h">Pièces contrôlées</div>' + A.map((a) => { const c = ASTAT[a.status] || "info";
+    return `<div class="st"><div class="si ${c}">${c === "ok" ? ICON.check : ICON.warn}</div>
+      <div><b>${esc(a.part)} ${pill(a.status === "aucun indice" ? "aucun indice de pièce non Apple" : a.status, c)}</b><p>${esc(a.detail)}</p></div></div>`; }).join("") : "";
   const F = r.known_faults || [];
   $("faults").innerHTML = F.length ? F.map((f) => `<div class="fault ${f.matched ? "hit" : ""}"><b>${esc(f.title)} ${f.matched ? pill("recoupe ce diagnostic", "bad") : ""}</b>
     <p>${esc(f.symptoms)}</p><p>${esc(f.check)}</p></div>`).join("") + '<p class="note">Une panne passe en rouge quand le diagnostic la recoupe.</p>'
@@ -295,16 +305,38 @@ function openReport(id) {
 }
 
 // ---------- Historique ----------
-async function loadHistory() {
-  const rows = await api(`/api/history?q=${encodeURIComponent($("h-q").value)}&date=${encodeURIComponent($("h-date").value)}`);
-  $("h-rows").innerHTML = rows.map((r) => `<tr><td>${esc(new Date(r.created * 1000).toLocaleString())}</td>
-    <td><b>${esc(label(r.device))}</b> <span class="note">${esc(r.device.serial_masked || "")}</span></td><td>${pill(r.kind, "gold")}</td>
-    <td>${esc(r.ticket || "")}</td><td>${r.flash ? pill(r.flash.state || "?", r.flash.state === "réussi" ? "ok" : r.flash.state === "en cours" ? "info" : "bad") +
-      (r.flash.error ? `<div class="note" style="margin:4px 0 0">${esc(r.flash.error.slice(0, 160))}</div>` : "") +
-      (r.causes && r.causes.length ? `<div class="note" style="margin:2px 0 0"><b>Cause probable :</b> ${esc(r.causes[0])}</div>` : "") : r.hypotheses}</td><td><button data-r="${esc(r.id)}">Ouvrir</button></td></tr>`).join("")
+let hRows = [], hFilter = "";
+const OPS = {diagnostic: "Diagnostic", fiche: "Fiche appareil", flash: "Flash", operation: "Opération"};
+const hFail = (r) => [r.flash, r.operation].some((x) => x && !["réussi", "en cours"].includes(x.state));
+function hResult(r) {
+  if (r.flash) return pill(r.flash.state || "?", r.flash.state === "réussi" ? "ok" : r.flash.state === "en cours" ? "info" : "bad") +
+    (r.flash.error ? `<div class="note" style="margin:4px 0 0">${esc(r.flash.error.slice(0, 160))}</div>` : "") +
+    (r.causes && r.causes.length ? `<div class="note" style="margin:2px 0 0"><b>Cause probable :</b> ${esc(r.causes[0])}</div>` : "");
+  if (r.operation) return pill(r.operation.state || "?", r.operation.state === "réussi" ? "ok" : r.operation.state === "en cours" ? "info" : "bad") +
+    (r.operation.error ? `<div class="note" style="margin:4px 0 0">${esc(r.operation.error.slice(0, 160))}</div>` : "");
+  const c = r.charge ? pill("charge : " + r.charge, r.charge === "charge normale" ? "ok" : "warn") + " " : "";
+  if (r.kind !== "diagnostic") return c || '<span class="note">—</span>';
+  return c + (r.top ? pill(r.top.length > 48 ? r.top.slice(0, 46) + "…" : r.top, {A: "ok", B: "ok", C: "warn"}[r.grade] || "bad") : pill("Aucune anomalie", "ok"));
+}
+function renderHistory() {
+  const rows = hRows.filter((r) => !hFilter || (hFilter === "fail" ? hFail(r) : hFilter === "charge" ? !!r.charge : r.kind === hFilter));
+  $("h-rows").innerHTML = rows.map((r) => `<tr><td>${r.grade ? `<span class="grade" style="background:${SCOL[r.grade]}" title="${r.score} / 100">${esc(r.grade)}</span>` : '<span class="grade none">—</span>'}</td>
+    <td>${esc(new Date(r.created * 1000).toLocaleString().slice(0, -3))}</td>
+    <td><b>${esc(label(r.device))}</b><div class="note" style="margin:0">${esc([r.device.os && r.device.os + " " + (r.device.os_version || ""), r.device.serial_masked, r.ticket && "ticket " + r.ticket].filter(Boolean).join(" · "))}</div></td>
+    <td>${esc(r.operation ? r.operation.label : r.flash && r.flash.operation ? "Flash · " + r.flash.operation : OPS[r.kind] || r.kind)}</td><td>${hResult(r)}</td>
+    <td><button data-r="${esc(r.id)}">Ouvrir</button></td></tr>`).join("")
     || '<tr><td colspan="6" class="note">Aucun rapport.</td></tr>';
   document.querySelectorAll("[data-r]").forEach((b) => b.onclick = () => openReport(b.dataset.r));
 }
+async function loadHistory() {
+  hRows = await api(`/api/history?q=${encodeURIComponent($("h-q").value)}&date=${encodeURIComponent($("h-date").value)}`);
+  if (!$("h-q").value && !$("h-date").value) { $("h-count").textContent = hRows.length; $("h-count").classList.toggle("hidden", !hRows.length); }
+  renderHistory();
+}
+document.querySelectorAll("#h-filters .chip").forEach((c) => c.onclick = () => {
+  hFilter = c.dataset.f; document.querySelectorAll("#h-filters .chip").forEach((x) => x.classList.toggle("on", x === c)); renderHistory();
+});
+api("/api/history").then((r) => { $("h-count").textContent = r.length; $("h-count").classList.toggle("hidden", !r.length); }).catch(() => {});
 $("h-go").onclick = loadHistory;
 let curTab = "diag";
 function tab(name) {
@@ -354,30 +386,59 @@ async function flashRefresh() {
     const act = have.has(f.file) ? pill("téléchargé", "ok") : x && ["en cours", "vérification"].includes(x.state) ?
       `${esc(x.state)} ${x.total ? Math.floor(x.done * 100 / x.total) : 0} % · ${(x.speed / 1e6).toFixed(1)} Mo/s <button data-cancel="${esc(f.url)}">Annuler</button>` :
       (x && x.error ? pill(x.error, "bad") + " " : "") + (f.signed ? `<button data-dl="${esc(f.url)}">Télécharger</button>` : "");
-    return `<tr><td><b>${esc(f.version)}</b></td><td>${esc(f.build)}</td><td>${esc(f.date)}</td><td>${gb(f.size)}</td>
-      <td>${f.signed ? pill("signé", "ok") : pill("non signé", "bad")}</td><td>${act}</td></tr>`; };
+    return `<div class="fw ${f.signed ? "" : "off"}"><div class="ios">${esc(String(f.version).split(".")[0])}</div>
+      <div><b>iOS ${esc(f.version)}</b> ${f.signed ? pill("signé", "ok") : pill("non signé", "bad")}<br>
+      <small>${esc([f.build, f.date, gb(f.size)].filter(Boolean).join(" · "))}${f.signed ? " · serveurs Apple" : " · Apple n'autorise plus son installation"}</small></div>
+      <div class="fw-act">${act}</div></div>`; };
   const signed = fwList.filter((f) => f.signed), unsigned = fwList.filter((f) => !f.signed);
   const openU = !!document.querySelector("#f-unsigned[open]");
-  if (fwList.length) $("f-list").innerHTML = (signed.length ? `<table><tbody>${signed.map(fwRow).join("")}</tbody></table>` : '<p class="note">Aucune version signée.</p>') +
+  if (fwList.length) $("f-list").innerHTML = (signed.length ? signed.map(fwRow).join("") : '<p class="note">Aucune version signée.</p>') +
     (unsigned.length ? `<details id="f-unsigned" ${openU ? "open" : ""} style="margin-top:8px"><summary class="note" style="cursor:pointer">Versions non signées (${unsigned.length}) — non installables</summary>
-      <table><tbody>${unsigned.slice(0, 40).map(fwRow).join("")}</tbody></table></details>` : "");
+      ${unsigned.slice(0, 40).map(fwRow).join("")}</details>` : "");
   document.querySelectorAll("[data-dl]").forEach((b) => b.onclick = async () => { try { await api("/api/firmware/download", {pt: fwFor, url: b.dataset.dl}); flashRefresh(); } catch (e) { toast(e.message); } });
   document.querySelectorAll("[data-cancel]").forEach((b) => b.onclick = () => api("/api/firmware/cancel", {url: b.dataset.cancel}));
+  const fj = lib.flash; const running = fj && !fj.done;
   const files = (lib.files || []).filter((f) => !t || !t.pt || (f.file.split("_")[0].match(/(iPhone|iPad|iPod)\d+,\d+/g) || []).includes(t.pt));
   if (!files.find((f) => f.file === libSel)) libSel = files.length ? files[0].file : null;
-  $("f-lib").innerHTML = files.length ? files.map((f) => `<label class="panic" style="display:block;cursor:pointer"><input type="radio" name="f-file" value="${esc(f.file)}" ${f.file === libSel ? "checked" : ""}> <b>${esc(f.file)}</b> · ${gb(f.size)}</label>`).join("")
-    : '<p class="note">Aucun firmware compatible téléchargé.</p>';
+  $("f-lib").innerHTML = (files.length ? files.map((f) => `<div class="panic lib-row"><label style="cursor:pointer;flex:1"><input type="radio" name="f-file" value="${esc(f.file)}" ${f.file === libSel ? "checked" : ""}> <b>${esc(f.file)}</b> · ${gb(f.size)}</label>
+      <button class="ghost" data-fwdel="${esc(f.file)}" ${running ? "disabled" : ""}>Supprimer</button></div>`).join("")
+    : '<p class="note">Aucun firmware compatible dans la bibliothèque.</p>') +
+    `<div class="row" style="margin-top:10px"><button id="f-import">Importer un .ipsw de l'ordinateur</button>${lib.dir ? '<button id="f-opendir" class="ghost">Ouvrir le dossier</button>' : ""}</div>`;
+  document.querySelectorAll("[data-fwdel]").forEach((b) => b.onclick = () => { b.id = b.id || "fwdel-" + Math.random().toString(36).slice(2);
+    arm(b, "Confirmer la suppression ?", async () => { try { await api("/api/firmware/delete", {file: b.dataset.fwdel}); toast("Firmware supprimé de la bibliothèque"); flashRefresh(); } catch (e) { toast(e.message); } }); });
+  $("f-import").onclick = async () => {
+    const pth = window.pywebview && window.pywebview.api && window.pywebview.api.choose_ipsw ? await window.pywebview.api.choose_ipsw() : prompt("Chemin complet du fichier .ipsw :");
+    if (!pth) return;
+    try { const r = await api("/api/firmware/import", {path: pth}); toast(r.message); setTimeout(flashRefresh, 800); } catch (e) { toast("Erreur : " + e.message); }
+  };
+  if ($("f-opendir")) $("f-opendir").onclick = () => api("/api/open", {path: lib.dir}).catch((e) => toast(e.message));
   document.querySelectorAll('input[name="f-file"]').forEach((r) => r.onchange = () => { libSel = r.value; });
   $("f-dir").textContent = lib.dir ? "Dossier : " + lib.dir : "";
   const mode = (document.querySelector('input[name="f-mode"]:checked') || {}).value;
   const phrase = t ? "FLASH" : "";
   $("f-phrase").innerHTML = t ? `Pour confirmer, tapez exactement : <b>${esc(phrase)}</b>` : "";
-  const fj = lib.flash; const running = fj && !fj.done;
+  flashSteps(t, running);
+  const erase = mode === "restore-erase";
+  $("f-after-opts").classList.toggle("off", !erase);
+  $("f-skip").disabled = !toolsState.cfgutil;
+  if (!toolsState.cfgutil) $("f-skip").checked = false;
+  const dev = t && t.kind === "device" ? devices.find((x) => x.key === t.key) : null;
+  $("f-act-now").disabled = $("f-skip-now").disabled = !dev || running;
+  $("f-skip-now").disabled = $("f-skip-now").disabled || !toolsState.cfgutil;
   $("f-go").disabled = !t || t.kind === "cfg" || !libSel || running; $("f-exit").disabled = running; $("f-detect").disabled = running;
   if (fj) { $("f-prog").classList.remove("hidden"); $("f-bar").style.width = fj.progress + "%";
     $("f-step").innerHTML = fj.error ? "⚠ " + esc(fj.error) + (fj.result && fj.result.explain && fj.result.explain.length ? "<b> — causes probables :</b>" + hypHtml(fj.result.explain) : "")
       : esc(fj.steps[fj.steps.length - 1] || ""); }
 }
+function flashSteps(t, running) {  // indicateur visuel uniquement : les contrôles restent côté serveur
+  const done = [!!t, !!(t && libSel), !!(t && libSel), running || $("f-confirm").value.trim() === "FLASH"];
+  const cur = done.indexOf(false);
+  document.querySelectorAll("#f-steps .step").forEach((e, i) => {
+    e.className = "step" + (done[i] && (cur < 0 || i < cur) ? " done" : i === cur ? " cur" : "");
+    e.querySelector("i").textContent = e.classList.contains("done") ? "✓" : i + 1;
+  });
+}
+$("f-confirm").addEventListener("input", () => flashSteps(flashTarget(), false));
 function renderCfg() {
   if (!toolsState.cfgutil) {
     $("cfg-box").innerHTML = /Win/.test(navigator.platform) ? "Sur Windows : restaurez ces appareils avec l'application Apple Devices (Apple Configurator n'existe que sur Mac)." : `Apple Configurator n'est pas installé. <b>Mac App Store → « Apple Configurator »</b> (gratuit, Apple) : dès qu'il est installé, cette fonction s'active toute seule.`;
@@ -398,7 +459,8 @@ function renderCfg() {
     const sel = document.querySelector('input[name="cfg-dev"]:checked'); if (!sel) return toast("Choisissez l'appareil.");
     const file = libSel && (libSel.split("_")[0].match(/(iPhone|iPad|iPod)\d+,\d+/g) || []).includes(sel.dataset.type) ? libSel : null;
     if (!confirm((op === "restore" ? "EFFACER DÉFINITIVEMENT et restaurer " : "Ranimer ") + (sel.dataset.type || "l'appareil") + " ?")) return;
-    try { await api("/api/cfg/restore", {op, ecid: sel.value, file, confirm: $("f-confirm").value, model: sel.dataset.type});
+    try { await api("/api/cfg/restore", {op, ecid: sel.value, file, confirm: $("f-confirm").value, model: sel.dataset.type,
+        after_activate: $("f-activate").checked, after_skip: $("f-skip").checked && !$("f-skip").disabled});
       toast("Lancé : ne débranchez pas l'iPhone."); $("f-confirm").value = ""; } catch (e) { toast(e.message); }
   };
   $("cfg-revive").onclick = go("revive"); $("cfg-restore").onclick = go("restore");
@@ -420,6 +482,7 @@ $("f-go").onclick = async () => {
   const t = flashTarget(), mode = document.querySelector('input[name="f-mode"]:checked').value;
   if (!confirm((mode === "restore-erase" ? "EFFACER DÉFINITIVEMENT " : "Flasher ") + t.label + " avec " + libSel + " ?")) return;
   try { await api("/api/flash/start", {op: mode, file: libSel, confirm: $("f-confirm").value, device: t.kind === "device" ? t.key : null,
+      after_activate: $("f-activate").checked, after_skip: $("f-skip").checked && !$("f-skip").disabled,
       ecid: t.ecid, model: t.model, product_type: t.pt}); toast("Flash lancé : ne débranchez pas l'iPhone."); $("f-confirm").value = ""; flashRefresh();
   } catch (e) { toast(e.message); }
 };
@@ -454,3 +517,85 @@ async function checkUpdate(force) {
 }
 setTimeout(checkUpdate, 1500); setInterval(checkUpdate, 3600 * 1000);
 poll(); setInterval(() => { if (!document.hidden) poll(); }, 2000);
+
+// ---------- iPhone : photos, applications, redémarrage (processus séparé, noté dans l'historique) ----------
+let phTask = null, apps = [], appsFor = null, armed = {};
+const mo = (n) => n == null ? "—" : n >= 1e9 ? (n / 1e9).toFixed(1) + " Go" : (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + " Mo";
+function arm(btn, label, fn) {  // double clic de confirmation, sans boîte de dialogue
+  if (armed[btn.id]) { clearTimeout(armed[btn.id].t); btn.innerHTML = armed[btn.id].html; delete armed[btn.id]; return fn(); }
+  armed[btn.id] = {html: btn.innerHTML, t: setTimeout(() => { btn.innerHTML = armed[btn.id].html; delete armed[btn.id]; }, 4000)};
+  btn.textContent = label;
+}
+async function startTask(body) {
+  try { return await api("/api/task", Object.assign({device: selected}, body)); } catch (e) { toast("Erreur : " + e.message); return null; }
+}
+async function followTask(id, onTick) {
+  for (;;) {
+    let t; try { t = await api("/api/task?id=" + id); } catch (e) { await new Promise((r) => setTimeout(r, 2000)); continue; }
+    onTick(t);
+    if (!["en attente", "en cours"].includes(t.state)) return t;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+}
+$("ph-go").onclick = async () => {
+  const t = await startTask({type: "photos", by_date: $("ph-date").checked, jpg: $("ph-jpg").checked});
+  if (!t) return;
+  phTask = t; $("ph-go").disabled = true; $("ph-prog").classList.remove("hidden"); $("ph-cancel").classList.remove("hidden"); $("ph-open").classList.add("hidden");
+  const end = await followTask(t.id, (x) => {
+    const pct = x.total ? Math.floor(x.done * 100 / x.total) : 2;
+    $("ph-bar").style.width = pct + "%";
+    $("ph-step").textContent = x.total ? `${x.done} / ${x.total} fichiers · ${mo(x.bytes)} · ${x.message || ""}` : (x.message || "Lecture de la photothèque…");
+  });
+  phTask = null; $("ph-go").disabled = false; $("ph-cancel").classList.add("hidden");
+  $("ph-open").classList.toggle("hidden", !end.dest); $("ph-open").dataset.path = end.dest || "";
+  $("ph-step").innerHTML = end.state === "réussi" ? "✓ " + esc(end.message) : "⚠ " + esc(end.error || end.state);
+  toast(end.state === "réussi" ? "Photos exportées" : "Export des photos : " + end.state);
+};
+$("ph-cancel").onclick = () => phTask && api("/api/task/cancel", {id: phTask.id});
+$("ph-open").onclick = () => api("/api/open", {path: $("ph-open").dataset.path}).catch((e) => toast(e.message));
+["restart", "shutdown"].forEach((k) => $("btn-" + k).onclick = () => arm($("btn-" + k), k === "restart" ? "Confirmer le redémarrage ?" : "Confirmer l'extinction ?", async () => {
+  const t = await startTask({type: k, confirm: true});
+  if (t) { const end = await followTask(t.id, () => {}); toast(end.state === "réussi" ? end.message : "Échec : " + (end.error || end.state)); }
+}));
+function renderApps() {
+  $("apps-title").textContent = apps.length ? `Applications (${apps.length})` : "Applications";
+  ["apps-q", "apps-csv"].forEach((i) => $(i).classList.toggle("hidden", !apps.length));
+  const q = $("apps-q").value.toLowerCase();
+  const rows = apps.filter((a) => !q || (a.name + " " + a.bundle).toLowerCase().includes(q));
+  $("apps-list").innerHTML = !apps.length ? "" : rows.map((a) => `<div class="app-row"><div><b>${esc(a.name)}</b><small>${esc(a.version || "")} · ${esc(a.bundle)}</small></div>
+    <span class="note" style="margin:0">${mo(a.app_size)} + ${mo(a.data_size)} de données</span>
+    <span class="app-act" data-b="${esc(a.bundle)}"><button class="ghost" data-del="${esc(a.bundle)}">Supprimer</button></span></div>`).join("") || '<p class="note">Aucune application ne correspond.</p>';
+  document.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => {
+    const a = apps.find((x) => x.bundle === b.dataset.del), box = b.parentElement;
+    box.innerHTML = `<input placeholder="Tapez SUPPRIMER" style="width:150px"><button class="danger-btn">Confirmer</button><button class="ghost">Annuler</button>`;
+    const [inp, ok, no] = box.children; inp.focus();
+    no.onclick = renderApps;
+    ok.onclick = async () => {
+      const t = await startTask({type: "uninstall", bundle: a.bundle, app_name: a.name, confirm: inp.value.trim()});
+      if (!t) return;
+      box.innerHTML = '<span class="note" style="margin:0">Suppression…</span>';
+      const end = await followTask(t.id, () => {});
+      if (end.state === "réussi") { apps = apps.filter((x) => x.bundle !== a.bundle); renderApps(); toast(end.message); }
+      else { toast("Échec : " + (end.error || end.state)); renderApps(); }
+    };
+  });
+}
+$("apps-q").oninput = renderApps;
+$("apps-load").onclick = async () => {
+  $("apps-load").disabled = true; $("apps-load").textContent = "Lecture des applications (≈ 10 s)…";
+  try { apps = await api("/api/apps?device=" + encodeURIComponent(selected)); appsFor = selected; } catch (e) { toast("Erreur : " + e.message); }
+  $("apps-load").disabled = false; $("apps-load").textContent = "Actualiser"; renderApps();
+};
+$("apps-csv").onclick = () => {
+  const csv = "Nom;Version;Identifiant;Taille app (octets);Données (octets)\n" + apps.map((a) => [a.name, a.version, a.bundle, a.app_size, a.data_size].map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
+  const u = URL.createObjectURL(new Blob(["﻿" + csv], {type: "text/csv"}));
+  Object.assign(document.createElement("a"), {href: u, download: "applications.csv"}).click();
+};
+
+["activate", "skip_setup"].forEach((k) => $(k === "activate" ? "f-act-now" : "f-skip-now").onclick = async () => {
+  const t = flashTarget(); if (!t || t.kind !== "device") return toast("Sélectionnez l'iPhone branché.");
+  $("f-after-st").textContent = (k === "activate" ? "Activation" : "Passage de la configuration") + " en cours…";
+  let r; try { r = await api("/api/task", {device: t.key, type: k}); } catch (e) { $("f-after-st").textContent = "⚠ " + e.message; return; }
+  const end = await followTask(r.id, (x) => { if (x.message) $("f-after-st").textContent = x.message; });
+  $("f-after-st").textContent = end.state === "réussi" ? "✓ " + end.message : "⚠ " + (end.error || end.state);
+});

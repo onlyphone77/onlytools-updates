@@ -10,7 +10,7 @@ const row = (k, x, suf) => `<tr><th>${esc(k)}</th><td>${v(x, suf)}</td></tr>`;
   if (rep.error) { document.getElementById("r").textContent = rep.error; return; }
   const d = rep.device || {}, b = rep.battery, res = rep.result || {};
   let h = `<div class="head"><div class="logo"><span class="mark"><svg viewBox="0 0 40 40" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="5" width="16" height="30" rx="5" fill="#1a1408"/><path d="M17.5 9h5" stroke="#f6e2a8" stroke-width="1.6"/><path d="M3.5 21H12M28 21h8.5" stroke="#1a1408" stroke-width="2.6"/><path d="M12 21h3.2l2-5.2 3.4 10 2.6-7.2 1.4 2.4H28" stroke="#f6e2a8" stroke-width="2.2"/></svg></span>ONLY <b>PHONE</b></div><div style="text-align:right">
-    <b>Rapport de ${rep.kind === "diagnostic" ? "diagnostic" : "contrôle (fiche appareil)"}</b><br>
+    <b>Rapport de ${rep.kind === "diagnostic" ? "diagnostic" : rep.kind === "operation" ? "l'opération" : rep.kind === "flash" ? "flash" : "contrôle (fiche appareil)"}</b><br>
     ${esc(new Date(rep.created * 1000).toLocaleString("fr-FR"))}<br><span class="muted">Réf. ${esc(rep.id)}${rep.ticket ? " · Ticket " + esc(rep.ticket) : ""}</span></div></div>
     <h2>Appareil</h2><table>${row("Marque / modèle", [d.brand, d.model].filter(Boolean).join(" "))}${row("Référence", d.model_code)}
     ${row("Système", d.os ? d.os + " " + (d.os_version || "") : null)}${row("Détails", d.os_detail)}
@@ -30,7 +30,8 @@ const row = (k, x, suf) => `<tr><th>${esc(k)}</th><td>${v(x, suf)}</td></tr>`;
     h += `<h2>Bilan</h2><table>${row("Score global", S.score + " / 100 — " + S.grade + " (" + S.label + ")")}</table>` +
       (S.factors.length ? "<ul>" + S.factors.map((f) => `<li>${esc(f.label)} (${f.pts})</li>`).join("") + "</ul>" : "") +
       '<p class="muted">Estimation sur les données lues ; les tests manuels ne sont pas comptés.</p>';
-    if ((res.authenticity || []).length) h += "<h2>Pièces d'origine (indices)</h2><table>" + res.authenticity.map((a) =>
+    const auth = (res.authenticity || []).filter((a) => a.status !== "non vérifiable");
+    if (auth.length) h += "<h2>Pièces contrôlées (indices)</h2><table>" + auth.map((a) =>
       `<tr><th>${esc(a.part)}</th><td><b>${esc(a.status)}</b> — ${esc(a.detail)}</td></tr>`).join("") + "</table>";
     if ((res.known_faults || []).length) h += "<h2>Pannes connues pour ce modèle</h2><ul>" + res.known_faults.map((f) =>
       `<li class="${f.matched ? "alert" : ""}"><b>${esc(f.title)}</b>${f.matched ? " — recoupe ce diagnostic" : ""} : ${esc(f.symptoms)} ${esc(f.check)}</li>`).join("") + "</ul>";
@@ -50,6 +51,12 @@ const row = (k, x, suf) => `<tr><th>${esc(k)}</th><td>${v(x, suf)}</td></tr>`;
       ${f.error ? row("Erreur", f.error) : ""}${row("Durée", Math.round((f.duration_s || 0) / 60) + " min")}</table>` +
       ((f.explain || []).length ? "<b>Causes probables :</b><ul>" + f.explain.map((x) => `<li><b>${esc(x.title)}</b> (confiance ${esc(x.confidence)}) — ${x.next_checks.map(esc).join(" ; ")}</li>`).join("") + "</ul>" : "") +
       ((f.log_tail || []).length && !f.ok ? `<details><summary class="muted">Journal technique</summary><pre style="white-space:pre-wrap;font-size:10px">${esc(f.log_tail.join("\n"))}</pre></details>` : "");
+  }
+  if (rep.operation) {
+    const o = rep.operation;
+    h += `<h2>Opération</h2><table>${row("Opération", o.label)}${row("Résultat", o.state)}${o.message ? row("Détail", o.message) : ""}
+      ${o.error ? row("Erreur", o.error) : ""}${(o.causes || []).length ? row("Causes probables", o.causes.join(" ; ")) : ""}
+      ${o.dest ? row("Dossier", o.dest) : ""}${o.duration_s != null ? row("Durée", Math.max(1, Math.round(o.duration_s / 60)) + " min") : ""}</table>`;
   }
   if (rep.charge_test) {
     const c = rep.charge_test;

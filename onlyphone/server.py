@@ -3,11 +3,13 @@ import json
 import re
 import mimetypes
 import os
+import subprocess
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-from . import __version__, diagnostic, history, firmware, flash, deadphone, updater, photos
+from . import __version__, diagnostic, history, firmware, flash, deadphone, updater, photos, phone_tasks
 from .monitor import Monitor, mask
 
 WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
@@ -125,6 +127,13 @@ class Handler(BaseHTTPRequestHandler):
                                    "ammeter": deadphone.ammeter(q.get("amp", ""))})
             if u.path == "/api/tests":
                 return self._json(diagnostic.TESTS)
+            if u.path == "/api/task":
+                return self._json(phone_tasks.get(q.get("id", "")))
+            if u.path == "/api/apps":
+                d = monitor.get(q.get("device", ""))
+                if not d or d.get("transport") != "lockdown":
+                    return self._json({"error": "iPhone non branché"}, 404)
+                return self._json(phone_tasks.list_apps(d["serial"]))
             if u.path == "/api/photo":
                 p = photos.photo(q.get("pt", ""))
                 return self._file(p, "public, max-age=604800") if p else self._json({"error": "pas de photo"}, 404)
@@ -140,7 +149,7 @@ class Handler(BaseHTTPRequestHandler):
         full = os.path.normpath(os.path.join(WEB, path.lstrip("/")))
         if not full.startswith(WEB) or not os.path.isfile(full):
             return self._json({"error": "introuvable"}, 404)
-        return self._file(full)
+        return self._file(full, "no-cache")  # la fenêtre recharge l'interface après une mise à jour
 
     def _file(self, full, cache=None):
         with open(full, "rb") as f:
@@ -220,6 +229,38 @@ class Handler(BaseHTTPRequestHandler):
                 if not fw:
                     return self._json({"error": "Firmware inconnu pour ce modèle"}, 400)
                 return self._json({k: v for k, v in firmware.start_download(fw).items() if k != "cancel"})
+            if path == "/api/task":  # photos, suppression d'app, redémarrage, extinction (processus séparé)
+                d = monitor.get(b.get("device", ""))
+                if not d:
+                    return self._json({"error": "Appareil déconnecté"}, 404)
+                kind = b.get("type")
+                p = {}
+                if kind == "photos":
+                    p = {"dest": phone_tasks.default_photo_dir(d.get("model")), "by_date": bool(b.get("by_date")), "jpg": bool(b.get("jpg"))}
+                elif kind == "uninstall":
+                    if b.get("confirm") != "SUPPRIMER" or not re.match(r"^[\w.\-]+$", b.get("bundle") or ""):
+                        return self._json({"error": "Confirmation manquante : tapez SUPPRIMER."}, 400)
+                    p = {"bundle": b["bundle"], "app_name": (b.get("app_name") or "")[:80]}
+                elif kind in ("restart", "shutdown") and b.get("confirm") is not True:
+                    return self._json({"error": "Confirmation manquante."}, 400)
+                return self._json(phone_tasks.start(kind, d, device_summary(d), **p))
+            if path == "/api/task/cancel":
+                return self._json(phone_tasks.cancel(b.get("id", "")))
+            if path == "/api/open":  # ouvre dans le Finder un dossier de l'app (photos exportées, firmwares)
+                tgt = os.path.realpath(b.get("path") or "")
+                roots = [os.path.realpath(os.path.join(os.path.expanduser("~"), "Pictures", "Only Tools")), os.path.realpath(firmware.fw_dir())]
+                if not any(tgt == r or tgt.startswith(r + os.sep) for r in roots) or not os.path.exists(tgt):
+                    return self._json({"error": "Dossier non autorisé"}, 400)
+                subprocess.Popen(["open", tgt] if sys.platform == "darwin" else ["explorer", tgt])
+                return self._json({"ok": True})
+            if path == "/api/firmware/delete":
+                p = firmware.local_path(b.get("file", ""))
+                if flash.busy():
+                    return self._json({"error": "Un flash est en cours."}, 400)
+                os.remove(p)
+                return self._json({"ok": True})
+            if path == "/api/firmware/import":
+                return self._json(firmware.import_local(b.get("path", "")))
             if path == "/api/firmware/cancel":
                 st = firmware.downloads.get(b.get("url"))
                 if st:
@@ -260,6 +301,10 @@ class Handler(BaseHTTPRequestHandler):
                 args = [ecid] + ([firmware.local_path(b["file"])] if b.get("file") else [])
                 job = flash.run(op, args, b.get("model") or "iPhone")
                 jobs[job.id] = job
+                if op == "cfg-restore":
+                    phone_tasks.start_after_flash(job.report_id, {"model": b.get("model") or "iPhone"},
+                                                  ecid=int(ecid, 16) if ecid.lower().startswith("0x") else int(ecid),
+                                                  do_activate=b.get("after_activate"), do_skip=b.get("after_skip"))
                 return self._json({"job": job.id})
             if path == "/api/flash/start":
                 op = b.get("op")
@@ -285,6 +330,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": "Aucun appareil cible"}, 400)
                 job = flash.run(op, [ipsw, "erase" if op == "restore-erase" else "update", target], model)
                 jobs[job.id] = job
+                if op == "restore-erase":  # activation / assistant passé : seulement après un effacement
+                    phone_tasks.start_after_flash(job.report_id, device_summary(d) if d else {"model": model},
+                                                  udid=target if not target.startswith("ecid:") else None,
+                                                  ecid=int(b["ecid"]) if b.get("ecid") else None,
+                                                  do_activate=b.get("after_activate"), do_skip=b.get("after_skip"))
                 return self._json({"job": job.id})
             if path == "/api/blacklist":
                 imei = (b.get("imei") or "").strip()

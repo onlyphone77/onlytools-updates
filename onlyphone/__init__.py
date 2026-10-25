@@ -1,5 +1,5 @@
 """Only Tools — diagnostic local de smartphones (Android / Apple)."""
-__version__ = "0.6.4"
+__version__ = "0.6.5"
 
 # États de reconnaissance d'un appareil
 RECOGNIZED = "reconnu"

@@ -51,6 +51,12 @@ class Api(object):
             w.destroy()
         os._exit(0)
 
+    def choose_ipsw(self):
+        """Sélecteur de fichier natif pour importer un firmware .ipsw ; renvoie le chemin ou None."""
+        import webview
+        r = webview.windows[0].create_file_dialog(webview.OPEN_DIALOG, file_types=("Firmware Apple (*.ipsw)",))
+        return r[0] if r else None
+
     def open_report(self, rid):
         # Le navigateur par défaut gère l'impression « Enregistrer en PDF » de façon fiable
         if isinstance(rid, str) and rid.isalnum():
