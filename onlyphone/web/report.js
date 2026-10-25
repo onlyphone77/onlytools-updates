@@ -9,7 +9,7 @@ const row = (k, x, suf) => `<tr><th>${esc(k)}</th><td>${v(x, suf)}</td></tr>`;
     fetch("/api/tests").then((r) => r.json())]);
   if (rep.error) { document.getElementById("r").textContent = rep.error; return; }
   const d = rep.device || {}, b = rep.battery, res = rep.result || {};
-  let h = `<div class="head"><div class="logo">ONLY <b>PHONE</b></div><div style="text-align:right">
+  let h = `<div class="head"><div class="logo"><span class="mark"><svg viewBox="0 0 40 40" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="5" width="16" height="30" rx="5" fill="#1a1408"/><path d="M17.5 9h5" stroke="#f6e2a8" stroke-width="1.6"/><path d="M3.5 21H12M28 21h8.5" stroke="#1a1408" stroke-width="2.6"/><path d="M12 21h3.2l2-5.2 3.4 10 2.6-7.2 1.4 2.4H28" stroke="#f6e2a8" stroke-width="2.2"/></svg></span>ONLY <b>PHONE</b></div><div style="text-align:right">
     <b>Rapport de ${rep.kind === "diagnostic" ? "diagnostic" : "contrôle (fiche appareil)"}</b><br>
     ${esc(new Date(rep.created * 1000).toLocaleString("fr-FR"))}<br><span class="muted">Réf. ${esc(rep.id)}${rep.ticket ? " · Ticket " + esc(rep.ticket) : ""}</span></div></div>
     <h2>Appareil</h2><table>${row("Marque / modèle", [d.brand, d.model].filter(Boolean).join(" "))}${row("Référence", d.model_code)}
@@ -25,6 +25,16 @@ const row = (k, x, suf) => `<tr><th>${esc(k)}</th><td>${v(x, suf)}</td></tr>`;
       ${(b.anomalies || []).map((a) => `<p class="alert">⚠ ${esc(a)}</p>`).join("")}
       ${(b.unavailable || []).map((a) => `<p class="muted">— ${esc(a)}</p>`).join("")}`;
   } else h += '<p class="muted">Données de batterie non disponibles via l\'interface utilisée.</p>';
+  if (rep.kind === "diagnostic" && res.score) {
+    const S = res.score;
+    h += `<h2>Bilan</h2><table>${row("Score global", S.score + " / 100 — " + S.grade + " (" + S.label + ")")}</table>` +
+      (S.factors.length ? "<ul>" + S.factors.map((f) => `<li>${esc(f.label)} (${f.pts})</li>`).join("") + "</ul>" : "") +
+      '<p class="muted">Estimation sur les données lues ; les tests manuels ne sont pas comptés.</p>';
+    if ((res.authenticity || []).length) h += "<h2>Pièces d'origine (indices)</h2><table>" + res.authenticity.map((a) =>
+      `<tr><th>${esc(a.part)}</th><td><b>${esc(a.status)}</b> — ${esc(a.detail)}</td></tr>`).join("") + "</table>";
+    if ((res.known_faults || []).length) h += "<h2>Pannes connues pour ce modèle</h2><ul>" + res.known_faults.map((f) =>
+      `<li class="${f.matched ? "alert" : ""}"><b>${esc(f.title)}</b>${f.matched ? " — recoupe ce diagnostic" : ""} : ${esc(f.symptoms)} ${esc(f.check)}</li>`).join("") + "</ul>";
+  }
   if (rep.kind === "diagnostic") {
     const ev = res.evidence || [];
     h += "<h2>Indices observés</h2>" + (ev.length ? "<ul>" + ev.map((e) => `<li class="${e.severity === "alerte" ? "alert" : ""}">${esc(e.text)} <span class="muted">(${esc(e.source)})</span></li>`).join("") + "</ul>"

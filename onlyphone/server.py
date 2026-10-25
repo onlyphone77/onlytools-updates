@@ -7,7 +7,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-from . import __version__, diagnostic, history, firmware, flash, deadphone, updater
+from . import __version__, diagnostic, history, firmware, flash, deadphone, updater, photos
 from .monitor import Monitor, mask
 
 WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
@@ -125,6 +125,9 @@ class Handler(BaseHTTPRequestHandler):
                                    "ammeter": deadphone.ammeter(q.get("amp", ""))})
             if u.path == "/api/tests":
                 return self._json(diagnostic.TESTS)
+            if u.path == "/api/photo":
+                p = photos.photo(q.get("pt", ""))
+                return self._file(p, "public, max-age=604800") if p else self._json({"error": "pas de photo"}, 404)
             return self._static(u.path)
         except FileNotFoundError:
             return self._json({"error": "Rapport introuvable"}, 404)
@@ -137,10 +140,16 @@ class Handler(BaseHTTPRequestHandler):
         full = os.path.normpath(os.path.join(WEB, path.lstrip("/")))
         if not full.startswith(WEB) or not os.path.isfile(full):
             return self._json({"error": "introuvable"}, 404)
+        return self._file(full)
+
+    def _file(self, full, cache=None):
         with open(full, "rb") as f:
             data = f.read()
+        ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
         self.send_response(200)
-        self.send_header("Content-Type", (mimetypes.guess_type(full)[0] or "application/octet-stream") + "; charset=utf-8")
+        self.send_header("Content-Type", ctype + ("; charset=utf-8" if ctype.startswith("text/") or ctype.endswith("javascript") else ""))
+        if cache:
+            self.send_header("Cache-Control", cache)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)

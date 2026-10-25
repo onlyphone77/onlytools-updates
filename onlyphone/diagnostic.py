@@ -4,7 +4,7 @@ import threading
 import time
 import uuid
 
-from . import analysis, battery, RECOGNIZED
+from . import analysis, battery, insights, RECOGNIZED
 from .adapters import android, apple
 
 # Tests guidés : "auto" = vérification automatique possible sur Android via ADB (lecture seule).
@@ -173,7 +173,7 @@ def _run_ios(job, keep_raw):
     res = {
         "identity": ident, "battery": batt, "evidence": ev, "hypotheses": hyps, "auto_tests": {},
         "details": details, "panics": panics_out,
-        "limits": limits + ["L'état des pièces (pièces d'origine) n'est pas exposé par USB : Réglages > Général > Informations.",
+        "limits": limits + ["Pièces d'origine : seuls des indices sont lus par USB (une copie peut imiter les valeurs Apple) ; contrôle complet dans Réglages > Général > Informations.",
                             "Diagnostic officiel complémentaire : Apple Diagnostics / Self Service Repair.",
                             "Les tests matériels nécessitent une validation manuelle."],
     }
@@ -331,6 +331,7 @@ def start(device, keep_raw=False, on_done=None):
                 job.result = _run_ios(job, keep_raw)
             else:
                 raise RuntimeError("Aucune interface de diagnostic disponible pour cet appareil.")
+            insights.enrich(job.result)
             job.result["started"] = time.time()
             job.step("Terminé", 100)
             if on_done:

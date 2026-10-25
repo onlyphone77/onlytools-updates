@@ -6,17 +6,17 @@ const ICON = {
   warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5M12 18h.01"/></svg>',
   info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>',
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12 5 5 9-10"/></svg>',
+  target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>',
 };
 let toolsState = {}, cfgDevs = null, lastFlash = null;
 function verdictHtml(v) {
   if (!v) return "";
-  const col = v.pct >= 60 ? "var(--ok)" : v.pct >= 40 ? "var(--warn)" : "var(--info)";
-  return `<div class="card" style="border:2px solid ${col};margin:12px 0 0;padding:16px 18px">
-    <div class="row" style="justify-content:space-between"><div><div class="note" style="margin:0">🎯 PIÈCE PRIORITAIRE</div>
-    <div style="font-size:22px;font-weight:700">${esc(v.part)}</div></div><div style="font-size:30px;font-weight:800;color:${col}">${v.pct} %</div></div>
-    <div style="margin-top:8px"><b>À faire :</b> ${esc(v.action)}</div>
-    <div class="note" style="margin-top:6px">Pourquoi : ${v.why.map(esc).join(" · ")}</div>
-    ${v.next_part ? `<div class="note" style="margin-top:6px"><b>Si ça ne règle pas →</b> ${esc(v.next_part)} : ${esc(v.next_action)}</div>` : ""}</div>`;
+  return `<div class="verdict"><div class="big">${ICON.target}</div>
+    <div><small>Pièce prioritaire</small><h3>${esc(v.part)}</h3><p><b>À faire :</b> ${esc(v.action)}</p>
+    <p>Pourquoi : ${v.why.map(esc).join(" · ")}</p>
+    ${v.next_part ? `<p><b>Si ça ne règle pas →</b> ${esc(v.next_part)} : ${esc(v.next_action)}</p>` : ""}</div>
+    <div class="conf"><b>${v.pct} %</b><div class="note" style="margin:0">des indices pointent ici</div><div class="bar" style="margin-top:6px"><i style="width:${v.pct}%"></i></div></div></div>`;
 }
 function renderLoop(L) {
   const h = L ? `<div class="alert warn">${ICON.warn}<div><b>Redémarrage en boucle détecté${L.model ? " (" + esc(L.model) + ")" : ""}</b><br>${esc(L.summary)}</div></div>` +
@@ -61,9 +61,12 @@ async function poll() {
     renderList(); renderDevice();
   } catch (e) { $("toolsinfo").textContent = "Service local injoignable."; }
 }
+const miniBat = (b) => b && b.level != null ? `<div class="mini"><i style="width:${Math.max(0, Math.min(100, b.level))}%;background:${b.level <= 20 ? "var(--bad)" : "var(--ok)"}"></i></div>` : "";
 function renderList() {
+  $("dev-count").textContent = "Appareils branchés" + (devices.length ? " · " + devices.length : "");
   $("devlist").innerHTML = devices.map((d) => `<div class="dev ${d.key === selected ? "sel" : ""}" data-k="${esc(d.key)}">
-    <div class="ic">${ICON.phone}</div><div><b>${esc(label(d))}</b><small>${esc(d.state)}</small></div></div>`).join("")
+    <div class="ic">${ICON.phone}<i class="${STATE_CLS[d.state] || ""}"></i></div><div><b>${esc(label(d))}</b>
+    <small>${esc([d.os && d.os + " " + (d.os_version || ""), d.state].filter(Boolean).join(" · "))}</small>${miniBat(d.battery)}</div></div>`).join("")
     || '<p class="note" style="padding:0 10px">Aucun appareil.</p>';
   document.querySelectorAll(".dev").forEach((el) => el.onclick = () => { selected = el.dataset.k; resetResults(); renderList(); renderDevice(); });
 }
@@ -76,7 +79,16 @@ function renderDevice() {
   const d = devices.find((x) => x.key === selected);
   $("nodevice").classList.toggle("hidden", !!d); $("device").classList.toggle("hidden", !d);
   if (!d) return;
-  $("phone-art").className = "phone-art " + (d.platform === "android" ? "android" : "");
+  $("phone-art").classList.toggle("android", d.platform === "android");
+  const img = $("phone-img"), pt = d.platform === "ios" ? d.model_code || "" : "";
+  if (img.dataset.pt !== pt) {  // photo officielle Apple (cache local) ; dessin si absente
+    img.dataset.pt = pt; img.classList.add("hidden"); $("phone-art").classList.remove("hidden");
+    if (pt) {
+      img.onload = () => { img.classList.remove("hidden"); $("phone-art").classList.add("hidden"); };
+      img.onerror = () => img.classList.add("hidden");
+      img.alt = label(d); img.src = "/api/photo?pt=" + encodeURIComponent(pt);
+    }
+  }
   $("d-title").textContent = label(d);
   $("d-sub").textContent = [d.os && d.os + " " + (d.os_version || ""), d.model_code, d.os_detail].filter(Boolean).join(" · ");
   const det = d.details || {};
@@ -123,10 +135,10 @@ function renderPanicAuto(d) {
       ${x.missing_sensors ? " · capteur(s) manquant(s) : <code>" + esc(x.missing_sensors) + "</code>" : ""}<br><code>${esc(x.summary)}</code></div>`).join("");
 }
 
-function ring(pct, color, big, small) {
-  const r = 62, c = 2 * Math.PI * r, p = pct == null ? 0 : Math.max(0, Math.min(100, pct));
-  return `<div class="gauge"><svg width="150" height="150"><circle cx="75" cy="75" r="${r}" stroke="#2a2d33" stroke-width="12" fill="none"/>
-    <circle cx="75" cy="75" r="${r}" stroke="${color}" stroke-width="12" fill="none" stroke-linecap="round"
+function ring(pct, color, big, small, size) {
+  const S = size || 130, h = S / 2, r = h - 8, c = 2 * Math.PI * r, p = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+  return `<div class="gauge" style="width:${S}px;height:${S}px"><svg width="${S}" height="${S}"><circle cx="${h}" cy="${h}" r="${r}" stroke="#2a2d34" stroke-width="11" fill="none"/>
+    <circle cx="${h}" cy="${h}" r="${r}" stroke="${color}" stroke-width="11" fill="none" stroke-linecap="round"
       stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - p / 100)}" style="transition:stroke-dashoffset .6s"/></svg>
     <div class="val"><div><b>${big}</b><small>${small}</small></div></div></div>`;
 }
@@ -179,7 +191,7 @@ $("bl-clean").onclick = () => blacklist("clean");
 $("bl-bad").onclick = () => blacklist("blacklisté");
 
 // ---------- Actions ----------
-function resetResults() { job = null; report = null; ["results", "progress-panel", "charge-card"].forEach((i) => $(i).classList.add("hidden")); }
+function resetResults() { job = null; report = null; ["results", "progress-panel", "charge-card", "hero-score"].forEach((i) => $(i).classList.add("hidden")); }
 async function runJob(path, body, onDone) {
   busy = true; renderDevice();
   try {
@@ -224,11 +236,31 @@ function drawChart(samples) {
     <polyline points="${line}" fill="none" stroke="#f0d48e" stroke-width="2.5" stroke-linejoin="round"/>
     <text x="14" y="16" fill="#9a9ca3" font-size="12">${Math.round(maxV / 1.15)} mA</text>`;
 }
+const SCOL = {A: "#4ade80", B: "#a3e635", C: "#fbbf24", D: "#fb923c", E: "#f87171"};
+const ASTAT = {"aucun indice": "ok", "à vérifier": "warn", "suspect": "bad", "non vérifiable": "info"};
 function renderResults(r) {
   $("results").classList.remove("hidden");
   const ev = r.evidence || [];
   $("evidence").innerHTML = ev.length ? ev.map((e) => alertBox(e.text + " — " + e.source, e.severity === "alerte" ? "warn" : "info")).join("")
     : '<p class="note">Aucune anomalie dans les données accessibles (cela ne garantit pas l\'absence de panne).</p>';
+  const S = r.score;
+  $("score-title").textContent = S ? "Bilan · " + S.score + " / 100" : "Bilan";
+  $("score").innerHTML = !S ? '<p class="note">Non calculé.</p>' :
+    (S.factors.length ? S.factors.map((f) => `<div class="factor"><span>${esc(f.label)}</span><em>${f.pts > 0 ? "+" : ""}${f.pts}</em></div>`).join("")
+      : '<p class="note" style="margin:0">Aucun point négatif dans les données lues.</p>') +
+    '<p class="note">Estimation sur les données lues ; les tests manuels ne sont pas comptés.</p>';
+  $("hero-score").classList.toggle("hidden", !S);
+  if (S) $("hero-score").innerHTML = ring(S.score, SCOL[S.grade], S.grade, S.score + " / 100", 132) +
+    `<div class="lbl">${esc(S.label)}</div><div class="sm">${esc((r.battery || {}).health === "dégradé" ? "batterie à remplacer" : "")}</div>`;
+  const A = r.authenticity || [];
+  $("auth").innerHTML = A.length ? A.map((a) => { const c = ASTAT[a.status] || "info";
+    return `<div class="st"><div class="si ${c}">${c === "ok" ? ICON.check : c === "info" ? ICON.info : ICON.warn}</div>
+      <div><b>${esc(a.part)} ${pill(a.status, c)}</b><p>${esc(a.detail)}</p></div></div>`; }).join("")
+    : '<p class="note">Contrôle disponible pour iPhone uniquement.</p>';
+  const F = r.known_faults || [];
+  $("faults").innerHTML = F.length ? F.map((f) => `<div class="fault ${f.matched ? "hit" : ""}"><b>${esc(f.title)} ${f.matched ? pill("recoupe ce diagnostic", "bad") : ""}</b>
+    <p>${esc(f.symptoms)}</p><p>${esc(f.check)}</p></div>`).join("") + '<p class="note">Une panne passe en rouge quand le diagnostic la recoupe.</p>'
+    : '<p class="note">Aucune panne répertoriée pour ce modèle.</p>';
   const H = r.hypotheses || [];
   $("hyps").innerHTML = H.length ? H.map((h) => `<div class="hyp c-${esc(h.confidence)}"><h3>${esc(h.title)} ${pill(h.category, "gold")}
      ${pill("confiance " + h.confidence, h.confidence === "élevée" ? "bad" : h.confidence === "moyenne" ? "warn" : "info")}</h3>
