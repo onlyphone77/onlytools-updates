@@ -1,0 +1,21 @@
+name: App Mac (Apple Silicon)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-14   # Apple Silicon (arm64) ; la partie Intel est construite sur le Mac de l'éditeur
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construction de Only Tools.app (Python embarqué)
+        run: |
+          chmod +x packaging/macos/*.sh
+          packaging/macos/build_app.sh out
+      - name: Archive
+        run: tar -C out -czf OnlyTools-app-arm64.tgz "Only Tools.app"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OnlyTools-app-arm64
+          path: OnlyTools-app-arm64.tgz
+          retention-days: 7
