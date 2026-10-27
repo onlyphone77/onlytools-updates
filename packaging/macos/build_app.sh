@@ -7,7 +7,7 @@ set -euo pipefail
 PBS_TAG=20261009            # python-build-standalone (astral-sh), version ≥ 2 semaines
 PY_VER=3.12.15
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-OUT="${1:?dossier de sortie}"
+mkdir -p "${1:?dossier de sortie}" && OUT="$(cd "$1" && pwd)"   # chemin absolu
 APP="$OUT/Only Tools.app"
 RES="$APP/Contents/Resources"
 ARCH="$(uname -m)"          # x86_64 ou arm64

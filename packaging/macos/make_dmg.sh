@@ -3,7 +3,7 @@
 #   packaging/macos/make_dmg.sh <sortie>   ->  <sortie>/OnlyTools-Mac.dmg
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-OUT="${1:?dossier de sortie}"
+mkdir -p "${1:?dossier de sortie}" && OUT="$(cd "$1" && pwd)"   # chemin absolu
 APP="$OUT/Only Tools.app"
 DMG="$OUT/OnlyTools-Mac.dmg"
 ST="$OUT/dmg-staging"
